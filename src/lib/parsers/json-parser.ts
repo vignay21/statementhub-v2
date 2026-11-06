@@ -48,19 +48,47 @@ export async function parseJSONStatement(file: File): Promise<ImportedStatement>
     }
 
     const bank = String(t.bank || t.Bank || "Other Bank").trim();
-    const description = String(t.description || t.Description || t.narration || t.particulars || "").trim();
-    const utr = String(t.utr || t.UTR || t.ref || t.reference || "").trim();
-    const party_name = String(t.party_name || t.party || "").trim();
+    const description = String(
+      t.description || t.Description || t.narration || t.particulars || ""
+    ).trim();
+    const utr = String(t.utr || t.UTR || t["UTR / Reference"] || t.ref || t.reference || "").trim();
+    const party_name = String(
+      t["Assigned Business / Party Name"] ||
+      t.party_name ||
+      t["Party Name"] ||
+      t.party ||
+      t.Party ||
+      ""
+    ).trim();
     const balance =
       t.balance !== undefined && t.balance !== null && !isNaN(Number(t.balance))
         ? Number(t.balance)
+        : t.Balance !== undefined && t.Balance !== null && !isNaN(Number(t.Balance))
+        ? Number(t.Balance)
         : null;
-    const party_match_key = String(t.party_match_key || "").trim() || extractPartyMatchKey(description);
+    const party_match_key =
+      String(t["Party match key"] || t["Party Match Key"] || t.party_match_key || "").trim() ||
+      extractPartyMatchKey(description);
+    const source_file = String(
+      t["Source file"] || t["Source File"] || t.source_file || file.name
+    ).trim();
 
-    let fingerprint = String(t.fingerprint || "").trim();
+    let fingerprint = String(
+      t.fingerprint || t["Transaction key"] || t["Transaction Key"] || ""
+    ).trim();
     if (!fingerprint) {
       fingerprint = await computeFingerprint(bank, date, amount, type, utr, description, balance);
     }
+
+    const is_self_transfer = Boolean(
+      t.is_self_transfer ?? t["Is_Internal"] ?? t["Is Internal"] ?? false
+    );
+    const is_fd_investment = Boolean(
+      t.is_fd_investment ?? t["Is_FD"] ?? t["Is FD"] ?? false
+    );
+    const is_duplicate_utr = Boolean(
+      t.is_duplicate_utr ?? t["Duplicate UTR"] ?? false
+    );
 
     transactions.push({
       fingerprint,
@@ -73,7 +101,10 @@ export async function parseJSONStatement(file: File): Promise<ImportedStatement>
       utr,
       balance,
       party_match_key,
-      source_file: file.name,
+      source_file,
+      is_self_transfer,
+      is_fd_investment,
+      is_duplicate_utr,
     });
   }
 

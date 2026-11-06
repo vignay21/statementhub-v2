@@ -83,13 +83,15 @@ export function TransactionTable({
       Bank: t.bank,
       Date: t.date,
       Description: t.description,
-      "Party Name": t.party_name,
+      "Assigned Business / Party Name": t.party_name,
       Amount: t.amount,
       Type: t.type,
       "UTR / Reference": t.utr,
       "Closing Balance": t.balance ?? "",
+      "Duplicate UTR": t.is_duplicate_utr ? "Yes" : "No",
       "Self Transfer": t.is_self_transfer ? "Yes" : "No",
       "Fixed Deposit": t.is_fd_investment ? "Yes" : "No",
+      "Party Match Key": t.party_match_key,
       "Source File": t.source_file,
     }));
 

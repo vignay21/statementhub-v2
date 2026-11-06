@@ -16,6 +16,19 @@ export async function GET() {
       fetchPartyMappingsFromDB(client),
     ]);
 
+    const formattedTransactions = transactions.map((t) => ({
+      ...t,
+      // Legacy backwards-compatible aliases for old StatementHub interoperability:
+      "Assigned Business / Party Name": t.party_name,
+      "Party match key": t.party_match_key,
+      "Source file": t.source_file,
+      "Transaction key": t.fingerprint,
+      "Balance": t.balance,
+      "Duplicate UTR": Boolean(t.is_duplicate_utr),
+      "Is_Internal": Boolean(t.is_self_transfer),
+      "Is_FD": Boolean(t.is_fd_investment),
+    }));
+
     const backup = {
       version: "2.0.0",
       exported_at: new Date().toISOString(),
@@ -24,9 +37,11 @@ export async function GET() {
         stored_parties: partyNames.length,
         party_mappings: partyMappings.length,
       },
+      total_stored_party_names: partyNames.length,
+      stored_party_names: partyNames,
       stored_parties: partyNames,
       party_mappings: partyMappings,
-      transactions: transactions,
+      transactions: formattedTransactions,
     };
 
     return new NextResponse(JSON.stringify(backup, null, 2), {
