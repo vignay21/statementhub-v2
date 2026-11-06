@@ -59,7 +59,7 @@ export function PartyManager({ storedParties, partyCounts, onAddParty }: PartyMa
       </div>
 
       <p className="text-xs text-slate-400">
-        Directory of registered counterparties & merchants detected in statement narrations. Used for AI matching & auto-complete.
+        Authorized directory of registered counterparty names. Only these are suggested when assigning party names. Type a new name to add it to this directory.
       </p>
 
       {isOpen && (
@@ -104,8 +104,8 @@ export function PartyManager({ storedParties, partyCounts, onAddParty }: PartyMa
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-900/80 text-slate-400 border-b border-slate-800">
                 <tr>
-                  <th className="py-2 px-3">Party / Counterparty Name</th>
-                  <th className="py-2 px-3 text-right">Transactions</th>
+                  <th className="py-2 px-3">Party Name</th>
+                  <th className="py-2 px-3 text-right">Transactions Assigned</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">

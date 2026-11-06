@@ -26,21 +26,12 @@ import { AIPartyAssistant } from "@/components/ai/party-assistant";
 import { CapacityTracker } from "@/components/storage/capacity-tracker";
 import { BackupRestore } from "@/components/storage/backup-restore";
 import { PartyManager } from "@/components/party/party-manager";
-
-// Helper to validate clean counterparty names
-const isValidPartyName = (name: string): boolean => {
-  if (!name || typeof name !== "string") return false;
-  const clean = name.trim();
-  if (clean.length < 2) return false;
-  if (/^\d+$/.test(clean)) return false;
-  if (/^(TRANSFER|PAYMENT|DEPOSIT|WITHDRAWAL|SALARY|INTEREST|CHARGES|TAX|GST|UPI|NEFT|RTGS|IMPS|CLG)$/i.test(clean)) return false;
-  return true;
-};
+import { DEFAULT_STORED_PARTY_NAMES } from "@/lib/constants/default-parties";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<"search" | "cashflow">("search");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [storedParties, setStoredParties] = useState<string[]>([]);
+  const [storedParties, setStoredParties] = useState<string[]>(DEFAULT_STORED_PARTY_NAMES);
   const [supabaseConnected, setSupabaseConnected] = useState(false);
   const [storageStats, setStorageStats] = useState<StorageStats>({
     usedBytes: 0,
@@ -98,18 +89,28 @@ export default function Home() {
       let localParties: string[] = [];
       try {
         const raw = localStorage.getItem("stored_parties_directory");
-        if (raw) localParties = JSON.parse(raw);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            localParties = parsed;
+          }
+        }
       } catch (e) {}
 
-      // 4. Also collect distinct party names & detected match keys from transactions
+      // 4. Also collect distinct explicitly assigned party names on transactions
       const txParties = loadedTransactions
-        .flatMap((t) => [t.party_name?.trim(), t.party_match_key?.trim()])
-        .filter((n): n is string => Boolean(n && isValidPartyName(n)));
+        .map((t) => t.party_name?.trim())
+        .filter((n): n is string => Boolean(n));
 
       const combinedParties = Array.from(
-        new Set([...partiesFromDB, ...localParties, ...txParties])
+        new Set([
+          ...DEFAULT_STORED_PARTY_NAMES,
+          ...partiesFromDB,
+          ...localParties,
+          ...txParties,
+        ])
       )
-        .filter((p) => p && typeof p === "string" && isValidPartyName(p))
+        .filter((p) => p && typeof p === "string" && p.trim())
         .sort((a, b) => a.localeCompare(b));
 
       setStoredParties(combinedParties);
@@ -616,45 +617,12 @@ export default function Home() {
     return annotatedTransactions.filter((t) => !t.party_name);
   }, [annotatedTransactions]);
 
-  // Extract all valid detected counterparties from transactions
-  const detectedCounterparties = useMemo(() => {
-    const set = new Set<string>();
-    transactions.forEach((t) => {
-      if (t.party_name && isValidPartyName(t.party_name)) {
-        set.add(t.party_name.trim());
-      }
-      if (t.party_match_key && isValidPartyName(t.party_match_key)) {
-        set.add(t.party_match_key.trim());
-      }
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [transactions]);
-
-  // Automatically sync detected counterparties into stored directory so directory is never empty
-  useEffect(() => {
-    if (detectedCounterparties.length > 0) {
-      setStoredParties((prev) => {
-        const merged = Array.from(new Set([...prev, ...detectedCounterparties])).sort((a, b) =>
-          a.localeCompare(b)
-        );
-        if (merged.length !== prev.length) {
-          try {
-            localStorage.setItem("stored_parties_directory", JSON.stringify(merged));
-          } catch (e) {}
-          return merged;
-        }
-        return prev;
-      });
-    }
-  }, [detectedCounterparties]);
-
-  // Party counts for directory
+  // Party counts for directory (assigned party names)
   const partyCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     annotatedTransactions.forEach((t) => {
-      const party = t.party_name || t.party_match_key;
-      if (party) {
-        counts[party] = (counts[party] || 0) + 1;
+      if (t.party_name) {
+        counts[t.party_name] = (counts[t.party_name] || 0) + 1;
       }
     });
     return counts;

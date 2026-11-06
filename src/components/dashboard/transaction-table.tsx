@@ -28,41 +28,26 @@ export function TransactionTable({
   const [page, setPage] = useState(1);
   const pageSize = 50;
 
-  // Master suggestion pool combining stored directory, assigned parties, and detected match keys
+  // Suggest ONLY from stored authorized party names directory
   const allSuggestions = useMemo(() => {
-    const set = new Set<string>();
-    storedParties.forEach((p) => {
-      if (p && p.trim()) set.add(p.trim());
-    });
-    transactions.forEach((tx) => {
-      if (tx.party_name && tx.party_name.trim()) set.add(tx.party_name.trim());
-      if (tx.party_match_key && tx.party_match_key.trim()) set.add(tx.party_match_key.trim());
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [storedParties, transactions]);
+    return storedParties
+      .filter((p) => p && typeof p === "string" && p.trim())
+      .sort((a, b) => a.localeCompare(b));
+  }, [storedParties]);
 
-  // Active suggestions for the currently edited transaction
+  // Active suggestions matching the user's typed input
   const activeSuggestions = useMemo(() => {
     if (!editingFingerprint) return [];
     const q = partyInput.trim().toLowerCase();
-    const currentTx = transactions.find((x) => x.fingerprint === editingFingerprint);
-    const detectedKey = currentTx?.party_match_key?.trim();
 
     if (!q) {
-      const initial: string[] = [];
-      if (detectedKey) initial.push(detectedKey);
-      for (const p of allSuggestions) {
-        if (p !== detectedKey && initial.length < 8) {
-          initial.push(p);
-        }
-      }
-      return initial;
+      return allSuggestions.slice(0, 10);
     }
 
     return allSuggestions
       .filter((p) => p.toLowerCase().includes(q))
-      .slice(0, 8);
-  }, [editingFingerprint, partyInput, allSuggestions, transactions]);
+      .slice(0, 10);
+  }, [editingFingerprint, partyInput, allSuggestions]);
 
   const totalPages = Math.ceil(transactions.length / pageSize) || 1;
   const paginatedData = transactions.slice((page - 1) * pageSize, page * pageSize);
@@ -204,28 +189,10 @@ export function TransactionTable({
                         {t.description}
                       </td>
 
-                      {/* Party Name (Inline editable with rich auto-suggestions) */}
+                      {/* Party Name (Inline editable with auto-suggestions from stored directory) */}
                       <td className="py-2 px-3 whitespace-nowrap min-w-[200px] max-w-[280px]">
                         {isEditing ? (
                           <div className="relative w-full space-y-1">
-                            {/* Detected counterparty quick chip */}
-                            {t.party_match_key && (
-                              <div className="flex items-center gap-1 text-[10px] text-slate-400">
-                                <span className="text-slate-500">Detected:</span>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setPartyInput(t.party_match_key);
-                                    saveEditing(t, t.party_match_key);
-                                  }}
-                                  className="px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 hover:bg-indigo-900 border border-indigo-800 font-mono text-[9px] transition-colors truncate max-w-[170px]"
-                                  title="Click to apply detected name"
-                                >
-                                  + {t.party_match_key}
-                                </button>
-                              </div>
-                            )}
-
                             <div className="flex items-center gap-1.5">
                               <input
                                 type="text"
@@ -260,7 +227,7 @@ export function TransactionTable({
                                   }
                                 }}
                                 autoFocus
-                                className="px-2 py-1 rounded bg-slate-900 border border-indigo-500 text-xs text-white focus:outline-none w-full"
+                                className="px-2 py-1 rounded bg-slate-900 border border-indigo-500 text-xs text-white focus:outline-none w-full uppercase"
                                 placeholder="Type or pick party name..."
                               />
                               <button
@@ -292,11 +259,6 @@ export function TransactionTable({
                                     }`}
                                   >
                                     <span className="truncate">{s}</span>
-                                    {s === t.party_match_key && (
-                                      <span className="text-[9px] ml-1 text-indigo-300 font-mono shrink-0">
-                                        Detected
-                                      </span>
-                                    )}
                                   </button>
                                 ))}
                               </div>
@@ -315,7 +277,7 @@ export function TransactionTable({
                                   : "text-slate-500 italic"
                               }`}
                             >
-                              {t.party_name || (t.party_match_key ? `[${t.party_match_key}]` : "[Unassigned]")}
+                              {t.party_name || "[Unassigned]"}
                             </span>
                             <Edit2 className="h-3 w-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                           </div>

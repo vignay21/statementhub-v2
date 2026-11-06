@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
       }
 
       rawParties =
+        backup.stored_party_names ||
         backup.stored_parties ||
         backup.storedParties ||
         backup.parties ||
