@@ -103,19 +103,19 @@ export function TransactionTable({
 
       {/* Main Responsive Table */}
       <div className="rounded-xl border border-slate-800 bg-slate-950/80 overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-slate-800 bg-slate-900/90 text-slate-400 uppercase tracking-wider font-semibold">
-                <th className="py-3 px-3.5">Bank</th>
-                <th className="py-3 px-3">Date</th>
-                <th className="py-3 px-3.5 min-w-[260px]">Description</th>
-                <th className="py-3 px-3 min-w-[180px]">Party Name (Editable)</th>
-                <th className="py-3 px-3 text-right">Amount</th>
-                <th className="py-3 px-3 text-center">Type</th>
-                <th className="py-3 px-3 min-w-[150px]">UTR / Reference</th>
-                <th className="py-3 px-3 text-right">Balance</th>
-                <th className="py-3 px-3 text-center">Tags</th>
+                <th className="py-3 px-3 whitespace-nowrap w-[110px]">Bank</th>
+                <th className="py-3 px-3 whitespace-nowrap w-[95px]">Date</th>
+                <th className="py-3 px-3 min-w-[220px] max-w-[380px]">Description</th>
+                <th className="py-3 px-3 min-w-[150px] max-w-[220px]">Party Name (Editable)</th>
+                <th className="py-3 px-3 text-right whitespace-nowrap w-[120px]">Amount</th>
+                <th className="py-3 px-3 text-center whitespace-nowrap w-[85px]">Type</th>
+                <th className="py-3 px-3 whitespace-nowrap w-[170px]">UTR / Reference</th>
+                <th className="py-3 px-3 text-right whitespace-nowrap w-[115px]">Balance</th>
+                <th className="py-3 px-3 text-center whitespace-nowrap w-[90px]">Tags</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-normal">
@@ -138,7 +138,7 @@ export function TransactionTable({
                       className="transition-colors hover:brightness-110"
                     >
                       {/* Bank badge */}
-                      <td className="py-2.5 px-3.5 whitespace-nowrap">
+                      <td className="py-2.5 px-3 whitespace-nowrap w-[110px]">
                         <span
                           style={{
                             backgroundColor: bankStyle.badgeBg,
@@ -152,17 +152,17 @@ export function TransactionTable({
                       </td>
 
                       {/* Date */}
-                      <td className="py-2.5 px-3 whitespace-nowrap font-mono text-slate-300">
+                      <td className="py-2.5 px-3 whitespace-nowrap font-mono text-slate-300 w-[95px]">
                         {t.date}
                       </td>
 
                       {/* Description */}
-                      <td className="py-2.5 px-3.5 text-slate-200 break-words leading-relaxed">
+                      <td className="py-2.5 px-3 text-slate-200 min-w-[220px] max-w-[380px] break-words text-[11px] leading-relaxed">
                         {t.description}
                       </td>
 
                       {/* Party Name (Inline editable) */}
-                      <td className="py-2 px-3 whitespace-nowrap">
+                      <td className="py-2 px-3 whitespace-nowrap min-w-[150px] max-w-[220px]">
                         {isEditing ? (
                           <div className="flex items-center gap-1.5">
                             <input
@@ -190,17 +190,17 @@ export function TransactionTable({
                             className="group flex items-center justify-between gap-1 px-2 py-1 rounded hover:bg-slate-800/80 cursor-pointer text-slate-200"
                             title="Click to edit party name"
                           >
-                            <span className={t.party_name ? "font-medium text-slate-100" : "text-slate-500 italic"}>
+                            <span className={`truncate ${t.party_name ? "font-medium text-slate-100" : "text-slate-500 italic"}`}>
                               {t.party_name || "[Unassigned]"}
                             </span>
-                            <Edit2 className="h-3 w-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <Edit2 className="h-3 w-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                           </div>
                         )}
                       </td>
 
                       {/* Amount */}
                       <td
-                        className={`py-2.5 px-3 text-right font-mono font-semibold whitespace-nowrap ${
+                        className={`py-2.5 px-3 text-right font-mono font-semibold whitespace-nowrap w-[120px] ${
                           isCredit ? "text-emerald-400" : "text-slate-100"
                         }`}
                       >
@@ -208,7 +208,7 @@ export function TransactionTable({
                       </td>
 
                       {/* Type Badge */}
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap w-[85px]">
                         <span
                           className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[11px] font-medium ${
                             isCredit
@@ -226,13 +226,13 @@ export function TransactionTable({
                       </td>
 
                       {/* UTR / Reference */}
-                      <td className="py-2.5 px-3 font-mono text-[11px] whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-mono text-[11px] whitespace-nowrap w-[170px]">
                         {t.utr ? (
                           <div className="flex items-center gap-1.5 text-slate-300">
-                            <span>{t.utr}</span>
+                            <span className="truncate max-w-[130px]" title={t.utr}>{t.utr}</span>
                             <button
                               onClick={() => handleCopyUTR(t.utr)}
-                              className="text-slate-500 hover:text-slate-200 p-0.5 transition-colors"
+                              className="text-slate-500 hover:text-slate-200 p-0.5 transition-colors shrink-0"
                               title="Copy UTR"
                             >
                               {copiedUtr === t.utr ? (
@@ -248,14 +248,14 @@ export function TransactionTable({
                       </td>
 
                       {/* Balance */}
-                      <td className="py-2.5 px-3 text-right font-mono text-slate-400 whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-right font-mono text-slate-400 whitespace-nowrap w-[115px]">
                         {t.balance !== null && t.balance !== undefined
                           ? formatINR(t.balance, "₹ ")
                           : "-"}
                       </td>
 
                       {/* Tags (Contra / FD) */}
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap space-x-1">
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap w-[90px] space-x-1">
                         {t.is_self_transfer && (
                           <Badge variant="warning" className="text-[10px] py-0 px-1.5">
                             Contra

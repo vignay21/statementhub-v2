@@ -427,7 +427,7 @@ export default function Home() {
         isRefreshing={isRefreshing}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-5 space-y-5">
+      <main className="flex-1 max-w-[1800px] w-full mx-auto px-4 lg:px-8 py-5 space-y-5">
         {/* Statement Upload Dropzone */}
         <FileDropzone onStatementsParsed={handleStatementsParsed} />
 
