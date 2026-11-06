@@ -8,13 +8,19 @@ export async function POST(req: NextRequest) {
     const transactions: Transaction[] = body.transactions || [];
     const storedParties: string[] = body.storedParties || [];
     const apiKey: string | undefined = body.apiKey;
+    const preferredModel: string | undefined = body.preferredModel;
 
     if (transactions.length === 0) {
-      return NextResponse.json({ suggestions: [] });
+      return NextResponse.json({ suggestions: [], modelUsed: "" });
     }
 
-    const suggestions = await generateAIPartySuggestions(transactions, storedParties, apiKey);
-    return NextResponse.json({ suggestions });
+    const result = await generateAIPartySuggestions(
+      transactions,
+      storedParties,
+      apiKey,
+      preferredModel
+    );
+    return NextResponse.json(result);
   } catch (err: any) {
     console.error("API /ai/suggest error:", err);
     return NextResponse.json({ error: err.message || "Failed to generate suggestions" }, { status: 500 });

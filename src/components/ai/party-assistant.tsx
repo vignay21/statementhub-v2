@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { Sparkles, Check, CheckSquare, Square, AlertCircle, ArrowRight, Loader2 } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { Sparkles, Check, CheckSquare, Square, AlertCircle, ArrowRight, Loader2, Cpu } from "lucide-react";
 import { Transaction } from "@/types/transaction";
 import { PartySuggestion } from "@/lib/ai/party-suggestions";
 import { Button } from "../ui/button";
@@ -34,8 +34,27 @@ export function AIPartyAssistant({
   const [customApiKey, setCustomApiKey] = useState(apiKey || "");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Dynamic model discovery & fallback
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [preferredModel, setPreferredModel] = useState<string>("auto");
+  const [modelUsed, setModelUsed] = useState<string | null>(null);
+
+  // Fetch available models from Gemini API
+  useEffect(() => {
+    if (isOpen) {
+      fetch("/api/ai/models")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.models && Array.isArray(data.models)) {
+            setAvailableModels(data.models.map((m: any) => m.id));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen]);
+
   // Filter candidate transactions
-  const candidates = React.useMemo(() => {
+  const candidates = useMemo(() => {
     return unassignedTransactions.filter((t) => {
       if (!t.party_name) {
         if (skipContraFD && (t.is_self_transfer || t.is_fd_investment)) return false;
@@ -48,6 +67,7 @@ export function AIPartyAssistant({
   const handleGenerate = async () => {
     setIsLoading(true);
     setErrorMsg(null);
+    setModelUsed(null);
 
     const batch = candidates.slice(0, batchSize);
 
@@ -59,6 +79,7 @@ export function AIPartyAssistant({
           transactions: batch,
           storedParties,
           apiKey: customApiKey || undefined,
+          preferredModel: preferredModel !== "auto" ? preferredModel : undefined,
         }),
       });
 
@@ -69,6 +90,9 @@ export function AIPartyAssistant({
 
       const returnedSuggestions: PartySuggestion[] = data.suggestions || [];
       setSuggestions(returnedSuggestions);
+      if (data.modelUsed) {
+        setModelUsed(data.modelUsed);
+      }
 
       // Pre-select High and Medium confidence suggestions
       const preSelected = new Set<string>();
@@ -134,12 +158,18 @@ export function AIPartyAssistant({
             <Sparkles className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
-              <span>AI Party Name Assistant</span>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-slate-100">AI Party Name Assistant</h3>
               <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono">
                 Google Gemini
               </span>
-            </h3>
+              {modelUsed && (
+                <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono flex items-center gap-1">
+                  <Cpu className="h-3 w-3" />
+                  <span>{modelUsed}</span>
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-400">
               {candidates.length} unassigned transactions available for AI auto-tagging.
             </p>
@@ -158,8 +188,9 @@ export function AIPartyAssistant({
 
       {isOpen && (
         <div className="mt-4 pt-4 border-t border-slate-800 space-y-4">
-          {/* Controls: Batch size, skip contra, API key */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          {/* Controls: Batch size, skip contra, Model selector */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            {/* 1. Batch Size */}
             <div className="space-y-1">
               <label className="text-slate-400 font-medium">
                 Batch Size: <span className="text-slate-200 font-mono">{batchSize} txns</span>
@@ -175,7 +206,8 @@ export function AIPartyAssistant({
               />
             </div>
 
-            <div className="flex items-center gap-2 pt-4">
+            {/* 2. Skip Contra / FD */}
+            <div className="flex items-center gap-2 pt-3">
               <label className="flex items-center gap-2 cursor-pointer text-slate-300">
                 <input
                   type="checkbox"
@@ -187,13 +219,34 @@ export function AIPartyAssistant({
               </label>
             </div>
 
-            <div className="flex items-center justify-end pt-2">
+            {/* 3. Gemini Model Selector with Auto-Fallback */}
+            <div className="space-y-1">
+              <label className="text-slate-400 font-medium flex items-center gap-1">
+                <Cpu className="h-3 w-3 text-indigo-400" />
+                <span>Gemini Model:</span>
+              </label>
+              <select
+                value={preferredModel}
+                onChange={(e) => setPreferredModel(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+              >
+                <option value="auto">⚡ Auto-Select (Cascading Fallback)</option>
+                {availableModels.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 4. Action button */}
+            <div className="flex items-center justify-end pt-3">
               <Button
                 variant="default"
                 size="sm"
                 onClick={handleGenerate}
                 disabled={isLoading || candidates.length === 0}
-                className="h-9 px-4 gap-2 text-xs"
+                className="h-9 px-4 gap-2 text-xs w-full sm:w-auto"
               >
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -215,7 +268,7 @@ export function AIPartyAssistant({
           {/* Suggestions Table */}
           {suggestions.length > 0 && (
             <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"
@@ -237,6 +290,11 @@ export function AIPartyAssistant({
                   <span className="text-slate-400">
                     ({selectedFingerprints.size} of {suggestions.length} selected)
                   </span>
+                  {modelUsed && (
+                    <span className="text-slate-400 text-[11px] ml-2">
+                      Generated via <span className="text-emerald-400 font-mono">{modelUsed}</span>
+                    </span>
+                  )}
                 </div>
 
                 <Button
