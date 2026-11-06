@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
-import { Database, Sparkles, RefreshCw, Layers } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Database, Sparkles, RefreshCw, Layers, Lock } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 
@@ -22,6 +22,25 @@ export function Header({
   onRefresh,
   isRefreshing,
 }: HeaderProps) {
+  const [protectionEnabled, setProtectionEnabled] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/status")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.protectionEnabled) setProtectionEnabled(true);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login";
+    } catch {
+      window.location.href = "/login";
+    }
+  };
   return (
     <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-30 px-4 lg:px-8 py-3.5">
       <div className="max-w-[1800px] mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -75,6 +94,20 @@ export function Header({
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
               <span className="hidden md:inline">Refresh</span>
+            </Button>
+          )}
+
+          {/* Lock / Logout button (visible when protection is active) */}
+          {protectionEnabled && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLogout}
+              className="h-8 gap-1.5 border-slate-800 hover:border-rose-900/50 hover:bg-rose-500/10 hover:text-rose-300 text-slate-400 transition-colors"
+              title="Lock dashboard and log out"
+            >
+              <Lock className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Lock</span>
             </Button>
           )}
         </div>

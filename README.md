@@ -125,6 +125,23 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to view th
 
 ---
 
+## 🔒 Access Protection & Security
+
+StatementHub includes optional built-in passcode gatekeeping. When enabled, unauthenticated visitors are automatically redirected to a login lock screen.
+
+### How to Enable:
+1. In your **Vercel Project Dashboard** (or `.env.local` locally), add the environment variable:
+   ```env
+   APP_ACCESS_CODE=your-secure-passcode
+   ```
+   *(You can also specify multiple comma-separated passcodes: `CodeOne,CodeTwo`).*
+2. Visitors must enter a valid passcode to view the application.
+3. Successful authentication sets a secure 30-day encrypted session cookie.
+4. Users can click the **Lock** button in the header at any time to log out.
+5. If `APP_ACCESS_CODE` is unset or blank, the app remains open without a passcode requirement.
+
+---
+
 ## 📁 Directory Structure
 
 ```text
