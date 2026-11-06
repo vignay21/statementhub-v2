@@ -76,7 +76,7 @@ export function FileDropzone({ onStatementsParsed, isProcessing }: FileDropzoneP
           ref={fileInputRef}
           type="file"
           multiple
-          accept=".csv,.xls,.xlsx,.json"
+          accept=".csv,.xls,.xlsx,.json,.pdf"
           className="hidden"
           onChange={(e) => handleFiles(e.target.files)}
         />
@@ -91,7 +91,7 @@ export function FileDropzone({ onStatementsParsed, isProcessing }: FileDropzoneP
               Drag & drop bank statements here, or <span className="text-indigo-400">browse</span>
             </p>
             <p className="text-xs text-slate-400 mt-1">
-              Supports CSV, XLS, XLSX, and JSON backups from HDFC, Canara, ICICI, SBI, Axis, and Kotak.
+              Supports CSV, XLS, XLSX, JSON, and PDF statements (via Gemini AI) from HDFC, Canara, ICICI, SBI, Axis, and Kotak.
             </p>
           </div>
 

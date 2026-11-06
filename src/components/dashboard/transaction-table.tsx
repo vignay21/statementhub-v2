@@ -340,8 +340,13 @@ export function TransactionTable({
                           : "-"}
                       </td>
 
-                      {/* Tags (Contra / FD) */}
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap w-[90px] space-x-1">
+                      {/* Tags (Contra / FD / Duplicate UTR) */}
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap w-[110px] space-x-1">
+                        {t.is_duplicate_utr && (
+                          <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-amber-500/10 text-amber-400 border-amber-500/30">
+                            Dup UTR
+                          </Badge>
+                        )}
                         {t.is_self_transfer && (
                           <Badge variant="warning" className="text-[10px] py-0 px-1.5">
                             Contra

@@ -139,17 +139,52 @@ export default function Home() {
     loadData();
   }, []);
 
-  // Compute tags for transactions (Contra & FD)
+  // Compute tags for transactions (Contra & FD & Duplicate UTRs)
   const annotatedTransactions = useMemo(() => {
     if (transactions.length === 0) return [];
     const contraFlags = detectContraTransfers(transactions);
     const fdFlags = detectFixedDeposits(transactions);
 
+    // Compute duplicate UTRs
+    const utrCounts: Record<string, number> = {};
+    transactions.forEach((t) => {
+      if (t.utr && t.utr.trim().length > 3) {
+        const u = t.utr.trim().toUpperCase();
+        utrCounts[u] = (utrCounts[u] || 0) + 1;
+      }
+    });
+
     return transactions.map((t, i) => ({
       ...t,
       is_self_transfer: contraFlags[i],
       is_fd_investment: fdFlags[i],
+      is_duplicate_utr: Boolean(t.utr && utrCounts[t.utr.trim().toUpperCase()] > 1),
     }));
+  }, [transactions]);
+
+  // Latest recorded date per bank
+  const latestDatesPerBank = useMemo(() => {
+    const datesMap: Record<string, string> = {};
+    transactions.forEach((t) => {
+      if (!t.bank || !t.date) return;
+      const b = t.bank.trim();
+      const parts = t.date.split("-");
+      if (parts.length === 3) {
+        const iso = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        if (!datesMap[b] || iso > datesMap[b]) {
+          datesMap[b] = iso;
+        }
+      }
+    });
+
+    const result: { bank: string; date: string }[] = [];
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    Object.keys(datesMap).sort().forEach((b) => {
+      const parts = datesMap[b].split("-");
+      const mIdx = parseInt(parts[1], 10) - 1;
+      result.push({ bank: b, date: `${parts[2]}-${monthNames[mIdx]}-${parts[0]}` });
+    });
+    return result;
   }, [transactions]);
 
   // Handle uploaded statements
@@ -641,6 +676,32 @@ export default function Home() {
       />
 
       <main className="flex-1 max-w-[1800px] w-full mx-auto px-4 lg:px-8 py-5 space-y-5">
+        {/* Latest Recorded Dates in Database Banner */}
+        {latestDatesPerBank.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 rounded-xl border border-indigo-900/50 bg-indigo-950/20 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-indigo-300 flex items-center gap-1.5">
+                <span>📅</span>
+                <span>Latest Recorded Dates in Database:</span>
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                {latestDatesPerBank.map((item) => (
+                  <span
+                    key={item.bank}
+                    className="px-2 py-0.5 rounded bg-slate-900/80 border border-slate-800 text-[11px]"
+                  >
+                    <strong className="text-slate-300 font-medium">{item.bank}:</strong>{" "}
+                    <span className="font-mono text-indigo-400 font-semibold">{item.date}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+            <span className="text-slate-500 italic text-[11px]">
+              (upload statements from these dates onwards)
+            </span>
+          </div>
+        )}
+
         {/* Statement Upload Dropzone */}
         <FileDropzone onStatementsParsed={handleStatementsParsed} />
 
