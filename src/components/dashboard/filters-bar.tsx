@@ -51,6 +51,11 @@ export function FiltersBar({
   activePeriodLabel,
   matchingCount,
 }: FiltersBarProps) {
+  const now = new Date();
+  const curFYStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  const curFYLabel = `FY ${curFYStart}-${String(curFYStart + 1).slice(2)}`;
+  const prevFYLabel = `FY ${curFYStart - 1}-${String(curFYStart).slice(2)}`;
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-300 shadow-sm">
       {/* Left controls: Period, Month Picker & Sort */}
@@ -64,35 +69,30 @@ export function FiltersBar({
           onChange={(e) => onPeriodChange(e.target.value as PeriodFilter)}
           className="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
         >
-          <option value="all">All Time</option>
-          <option value="this_month">This Month</option>
-          <option value="last_month">Last Month</option>
-          <option value="last_30_days">Last 30 Days</option>
-          <option value="last_90_days">Last 90 Days (Quarter)</option>
-          <option value="fy">Financial Year (Apr - Mar)</option>
-          <option value="prev_fy">Previous Financial Year</option>
-          {availableMonths.length > 0 && (
-            <option value="month_select">Specific Month...</option>
-          )}
-          <option value="custom">Custom Date Range</option>
-        </select>
+          <optgroup label="Quick Filters">
+            <option value="all">All Time</option>
+            <option value="last_30_days">Last 30 Days</option>
+            <option value="last_90_days">Last 90 Days (Quarter)</option>
+            <option value="this_month">This Month</option>
+            <option value="last_month">Last Month</option>
+            <option value="fy">Current {curFYLabel}</option>
+            <option value="prev_fy">Previous {prevFYLabel}</option>
+          </optgroup>
 
-        {/* Specific Month Selector */}
-        {period === "month_select" && availableMonths.length > 0 && (
-          <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
-            <select
-              value={selectedMonth || availableMonths[0]?.value}
-              onChange={(e) => onSelectedMonthChange && onSelectedMonthChange(e.target.value)}
-              className="bg-slate-800 border border-indigo-500/50 rounded-lg px-2.5 py-1.5 text-xs text-indigo-200 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-            >
+          {availableMonths.length > 0 && (
+            <optgroup label="Select Specific Month">
               {availableMonths.map((m) => (
-                <option key={m.value} value={m.value}>
+                <option key={m.value} value={`month:${m.value}`}>
                   {m.label} ({m.count} txns)
                 </option>
               ))}
-            </select>
-          </div>
-        )}
+            </optgroup>
+          )}
+
+          <optgroup label="Custom">
+            <option value="custom">Custom Date Range...</option>
+          </optgroup>
+        </select>
 
         {/* Custom Date Inputs */}
         {period === "custom" && (

@@ -247,7 +247,14 @@ export default function Home() {
 
     // Period filter
     const now = new Date();
-    if (period === "this_month") {
+    if (period.startsWith("month:")) {
+      const monthKey = period.replace("month:", "");
+      const [selM, selY] = monthKey.split("-");
+      result = result.filter((t) => {
+        const parts = t.date.split("-");
+        return parts[1] === selM && parts[2] === selY;
+      });
+    } else if (period === "this_month") {
       const curMonth = String(now.getMonth() + 1).padStart(2, "0");
       const curYear = String(now.getFullYear());
       result = result.filter((t) => {
@@ -263,16 +270,24 @@ export default function Home() {
         return parts[1] === curMonth && parts[2] === curYear;
       });
     } else if (period === "last_30_days") {
-      const thirtyDaysAgo = now.getTime() - 30 * 24 * 60 * 60 * 1000;
-      result = result.filter((t) => parseDateToTime(t.date) >= thirtyDaysAgo);
+      const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
+      const thirtyDaysAgo = endOfToday - 30 * 24 * 60 * 60 * 1000;
+      result = result.filter((t) => {
+        const time = parseDateToTime(t.date);
+        return time >= thirtyDaysAgo && time <= endOfToday;
+      });
     } else if (period === "last_90_days") {
-      const ninetyDaysAgo = now.getTime() - 90 * 24 * 60 * 60 * 1000;
-      result = result.filter((t) => parseDateToTime(t.date) >= ninetyDaysAgo);
+      const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
+      const ninetyDaysAgo = endOfToday - 90 * 24 * 60 * 60 * 1000;
+      result = result.filter((t) => {
+        const time = parseDateToTime(t.date);
+        return time >= ninetyDaysAgo && time <= endOfToday;
+      });
     } else if (period === "fy") {
       // Current Indian FY: Apr 1 of current or last year to Mar 31 of next year
       const curYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-      const startFY = new Date(curYear, 3, 1).getTime();
-      const endFY = new Date(curYear + 1, 2, 31, 23, 59, 59).getTime();
+      const startFY = new Date(curYear, 3, 1, 0, 0, 0, 0).getTime();
+      const endFY = new Date(curYear + 1, 2, 31, 23, 59, 59, 999).getTime();
       result = result.filter((t) => {
         const time = parseDateToTime(t.date);
         return time >= startFY && time <= endFY;
@@ -280,8 +295,8 @@ export default function Home() {
     } else if (period === "prev_fy") {
       // Previous Indian FY
       const curYear = (now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1) - 1;
-      const startFY = new Date(curYear, 3, 1).getTime();
-      const endFY = new Date(curYear + 1, 2, 31, 23, 59, 59).getTime();
+      const startFY = new Date(curYear, 3, 1, 0, 0, 0, 0).getTime();
+      const endFY = new Date(curYear + 1, 2, 31, 23, 59, 59, 999).getTime();
       result = result.filter((t) => {
         const time = parseDateToTime(t.date);
         return time >= startFY && time <= endFY;
@@ -471,6 +486,15 @@ export default function Home() {
 
   // Active period display label
   const getPeriodLabel = () => {
+    if (period.startsWith("month:")) {
+      const mVal = period.replace("month:", "");
+      const found = availableMonths.find((m) => m.value === mVal);
+      if (found) return found.label;
+      const [mm, yyyy] = mVal.split("-");
+      const d = new Date(parseInt(yyyy, 10), parseInt(mm, 10) - 1, 1);
+      return d.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+    }
+
     switch (period) {
       case "this_month": {
         const now = new Date();

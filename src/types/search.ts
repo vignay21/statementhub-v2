@@ -8,8 +8,8 @@ export type PeriodFilter =
   | "last_90_days"
   | "fy"
   | "prev_fy"
-  | "month_select"
-  | "custom";
+  | "custom"
+  | (string & {});
 
 export type SortOrder = "date_desc" | "date_asc" | "amount_desc" | "amount_asc";
 

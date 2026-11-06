@@ -63,14 +63,33 @@ export function normalizeDate(raw: string | number | Date | null | undefined): s
   return str;
 }
 
-export function parseDateToTime(dmy: string): number {
-  if (!dmy) return 0;
-  const parts = dmy.split("-");
-  if (parts.length === 3) {
-    const day = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const year = parseInt(parts[2], 10);
+export function parseDateToTime(raw: string | number | Date | null | undefined): number {
+  if (!raw) return 0;
+  if (raw instanceof Date) return isNaN(raw.getTime()) ? 0 : raw.getTime();
+  if (typeof raw === "number") return raw;
+
+  const str = String(raw).trim();
+  if (!str) return 0;
+
+  // Indian format: DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY
+  const dmyMatch = str.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/);
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[1], 10);
+    const month = parseInt(dmyMatch[2], 10) - 1;
+    let year = parseInt(dmyMatch[3], 10);
+    if (year < 100) year += 2000;
     return new Date(year, month, day).getTime();
   }
-  return 0;
+
+  // ISO format: YYYY-MM-DD
+  const ymdMatch = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (ymdMatch) {
+    const year = parseInt(ymdMatch[1], 10);
+    const month = parseInt(ymdMatch[2], 10) - 1;
+    const day = parseInt(ymdMatch[3], 10);
+    return new Date(year, month, day).getTime();
+  }
+
+  const fallback = new Date(str).getTime();
+  return isNaN(fallback) ? 0 : fallback;
 }
