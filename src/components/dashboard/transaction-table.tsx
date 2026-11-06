@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import * as XLSX from "xlsx";
-import { Download, Copy, Check, Edit2, ArrowDownLeft, ArrowUpRight, ShieldCheck, Landmark } from "lucide-react";
+import { Download, Copy, Check, Edit2, ArrowDownLeft, ArrowUpRight, ShieldCheck, Landmark, Sparkles } from "lucide-react";
 import { Transaction } from "@/types/transaction";
 import { formatINR } from "@/lib/formatters/currency";
 import { getBankStyle } from "@/lib/constants";
@@ -22,9 +22,47 @@ export function TransactionTable({
 }: TransactionTableProps) {
   const [editingFingerprint, setEditingFingerprint] = useState<string | null>(null);
   const [partyInput, setPartyInput] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestIndex, setSuggestIndex] = useState(-1);
   const [copiedUtr, setCopiedUtr] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const pageSize = 50;
+
+  // Master suggestion pool combining stored directory, assigned parties, and detected match keys
+  const allSuggestions = useMemo(() => {
+    const set = new Set<string>();
+    storedParties.forEach((p) => {
+      if (p && p.trim()) set.add(p.trim());
+    });
+    transactions.forEach((tx) => {
+      if (tx.party_name && tx.party_name.trim()) set.add(tx.party_name.trim());
+      if (tx.party_match_key && tx.party_match_key.trim()) set.add(tx.party_match_key.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [storedParties, transactions]);
+
+  // Active suggestions for the currently edited transaction
+  const activeSuggestions = useMemo(() => {
+    if (!editingFingerprint) return [];
+    const q = partyInput.trim().toLowerCase();
+    const currentTx = transactions.find((x) => x.fingerprint === editingFingerprint);
+    const detectedKey = currentTx?.party_match_key?.trim();
+
+    if (!q) {
+      const initial: string[] = [];
+      if (detectedKey) initial.push(detectedKey);
+      for (const p of allSuggestions) {
+        if (p !== detectedKey && initial.length < 8) {
+          initial.push(p);
+        }
+      }
+      return initial;
+    }
+
+    return allSuggestions
+      .filter((p) => p.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [editingFingerprint, partyInput, allSuggestions, transactions]);
 
   const totalPages = Math.ceil(transactions.length / pageSize) || 1;
   const paginatedData = transactions.slice((page - 1) * pageSize, page * pageSize);
@@ -39,12 +77,17 @@ export function TransactionTable({
   const startEditing = (t: Transaction) => {
     setEditingFingerprint(t.fingerprint);
     setPartyInput(t.party_name || "");
+    setShowSuggestions(true);
+    setSuggestIndex(-1);
   };
 
-  const saveEditing = async (t: Transaction) => {
+  const saveEditing = async (t: Transaction, overrideValue?: string) => {
     if (editingFingerprint) {
-      await onUpdatePartyName(t.fingerprint, t.party_match_key, partyInput.trim());
+      const finalParty = (overrideValue !== undefined ? overrideValue : partyInput).trim();
+      await onUpdatePartyName(t.fingerprint, t.party_match_key, finalParty);
       setEditingFingerprint(null);
+      setShowSuggestions(false);
+      setSuggestIndex(-1);
     }
   };
 
@@ -161,28 +204,103 @@ export function TransactionTable({
                         {t.description}
                       </td>
 
-                      {/* Party Name (Inline editable) */}
-                      <td className="py-2 px-3 whitespace-nowrap min-w-[150px] max-w-[220px]">
+                      {/* Party Name (Inline editable with rich auto-suggestions) */}
+                      <td className="py-2 px-3 whitespace-nowrap min-w-[200px] max-w-[280px]">
                         {isEditing ? (
-                          <div className="flex items-center gap-1.5">
-                            <input
-                              type="text"
-                              value={partyInput}
-                              onChange={(e) => setPartyInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") saveEditing(t);
-                                if (e.key === "Escape") setEditingFingerprint(null);
-                              }}
-                              autoFocus
-                              className="px-2 py-1 rounded bg-slate-900 border border-indigo-500 text-xs text-white focus:outline-none w-full"
-                              placeholder="Type party name..."
-                            />
-                            <button
-                              onClick={() => saveEditing(t)}
-                              className="px-2 py-1 rounded bg-indigo-600 text-white text-[11px] hover:bg-indigo-700"
-                            >
-                              Save
-                            </button>
+                          <div className="relative w-full space-y-1">
+                            {/* Detected counterparty quick chip */}
+                            {t.party_match_key && (
+                              <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                                <span className="text-slate-500">Detected:</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPartyInput(t.party_match_key);
+                                    saveEditing(t, t.party_match_key);
+                                  }}
+                                  className="px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 hover:bg-indigo-900 border border-indigo-800 font-mono text-[9px] transition-colors truncate max-w-[170px]"
+                                  title="Click to apply detected name"
+                                >
+                                  + {t.party_match_key}
+                                </button>
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="text"
+                                value={partyInput}
+                                list="global-party-datalist"
+                                onChange={(e) => {
+                                  setPartyInput(e.target.value);
+                                  setShowSuggestions(true);
+                                  setSuggestIndex(-1);
+                                }}
+                                onFocus={() => setShowSuggestions(true)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "ArrowDown") {
+                                    e.preventDefault();
+                                    setSuggestIndex((prev) =>
+                                      Math.min(prev + 1, activeSuggestions.length - 1)
+                                    );
+                                  } else if (e.key === "ArrowUp") {
+                                    e.preventDefault();
+                                    setSuggestIndex((prev) => Math.max(prev - 1, -1));
+                                  } else if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    if (suggestIndex >= 0 && activeSuggestions[suggestIndex]) {
+                                      setPartyInput(activeSuggestions[suggestIndex]);
+                                      saveEditing(t, activeSuggestions[suggestIndex]);
+                                    } else {
+                                      saveEditing(t);
+                                    }
+                                  } else if (e.key === "Escape") {
+                                    setEditingFingerprint(null);
+                                    setShowSuggestions(false);
+                                  }
+                                }}
+                                autoFocus
+                                className="px-2 py-1 rounded bg-slate-900 border border-indigo-500 text-xs text-white focus:outline-none w-full"
+                                placeholder="Type or pick party name..."
+                              />
+                              <button
+                                onClick={() => saveEditing(t)}
+                                className="px-2.5 py-1 rounded bg-indigo-600 text-white text-[11px] hover:bg-indigo-700 font-medium shrink-0"
+                              >
+                                Save
+                              </button>
+                            </div>
+
+                            {/* Floating suggestion dropdown */}
+                            {showSuggestions && activeSuggestions.length > 0 && (
+                              <div
+                                className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto rounded-md border border-slate-700 bg-slate-900 shadow-2xl py-1"
+                                onMouseDown={(e) => e.preventDefault()}
+                              >
+                                {activeSuggestions.map((s, idx) => (
+                                  <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => {
+                                      setPartyInput(s);
+                                      saveEditing(t, s);
+                                    }}
+                                    className={`w-full text-left px-2.5 py-1.5 text-xs truncate transition-colors flex items-center justify-between ${
+                                      idx === suggestIndex
+                                        ? "bg-indigo-600 text-white"
+                                        : "text-slate-200 hover:bg-slate-800"
+                                    }`}
+                                  >
+                                    <span className="truncate">{s}</span>
+                                    {s === t.party_match_key && (
+                                      <span className="text-[9px] ml-1 text-indigo-300 font-mono shrink-0">
+                                        Detected
+                                      </span>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div
@@ -190,8 +308,14 @@ export function TransactionTable({
                             className="group flex items-center justify-between gap-1 px-2 py-1 rounded hover:bg-slate-800/80 cursor-pointer text-slate-200"
                             title="Click to edit party name"
                           >
-                            <span className={`truncate ${t.party_name ? "font-medium text-slate-100" : "text-slate-500 italic"}`}>
-                              {t.party_name || "[Unassigned]"}
+                            <span
+                              className={`truncate ${
+                                t.party_name
+                                  ? "font-medium text-slate-100"
+                                  : "text-slate-500 italic"
+                              }`}
+                            >
+                              {t.party_name || (t.party_match_key ? `[${t.party_match_key}]` : "[Unassigned]")}
                             </span>
                             <Edit2 className="h-3 w-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                           </div>
@@ -306,6 +430,13 @@ export function TransactionTable({
           </div>
         )}
       </div>
+
+      {/* Global Datalist for Native Autocomplete Fallback */}
+      <datalist id="global-party-datalist">
+        {allSuggestions.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
     </div>
   );
 }

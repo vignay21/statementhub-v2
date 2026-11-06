@@ -27,6 +27,16 @@ import { CapacityTracker } from "@/components/storage/capacity-tracker";
 import { BackupRestore } from "@/components/storage/backup-restore";
 import { PartyManager } from "@/components/party/party-manager";
 
+// Helper to validate clean counterparty names
+const isValidPartyName = (name: string): boolean => {
+  if (!name || typeof name !== "string") return false;
+  const clean = name.trim();
+  if (clean.length < 2) return false;
+  if (/^\d+$/.test(clean)) return false;
+  if (/^(TRANSFER|PAYMENT|DEPOSIT|WITHDRAWAL|SALARY|INTEREST|CHARGES|TAX|GST|UPI|NEFT|RTGS|IMPS|CLG)$/i.test(clean)) return false;
+  return true;
+};
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<"search" | "cashflow">("search");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -91,15 +101,15 @@ export default function Home() {
         if (raw) localParties = JSON.parse(raw);
       } catch (e) {}
 
-      // 4. Also collect distinct party names present on transactions
+      // 4. Also collect distinct party names & detected match keys from transactions
       const txParties = loadedTransactions
-        .map((t) => t.party_name?.trim())
-        .filter((n): n is string => Boolean(n));
+        .flatMap((t) => [t.party_name?.trim(), t.party_match_key?.trim()])
+        .filter((n): n is string => Boolean(n && isValidPartyName(n)));
 
       const combinedParties = Array.from(
         new Set([...partiesFromDB, ...localParties, ...txParties])
       )
-        .filter((p) => p && typeof p === "string" && p.trim())
+        .filter((p) => p && typeof p === "string" && isValidPartyName(p))
         .sort((a, b) => a.localeCompare(b));
 
       setStoredParties(combinedParties);
@@ -606,12 +616,45 @@ export default function Home() {
     return annotatedTransactions.filter((t) => !t.party_name);
   }, [annotatedTransactions]);
 
+  // Extract all valid detected counterparties from transactions
+  const detectedCounterparties = useMemo(() => {
+    const set = new Set<string>();
+    transactions.forEach((t) => {
+      if (t.party_name && isValidPartyName(t.party_name)) {
+        set.add(t.party_name.trim());
+      }
+      if (t.party_match_key && isValidPartyName(t.party_match_key)) {
+        set.add(t.party_match_key.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [transactions]);
+
+  // Automatically sync detected counterparties into stored directory so directory is never empty
+  useEffect(() => {
+    if (detectedCounterparties.length > 0) {
+      setStoredParties((prev) => {
+        const merged = Array.from(new Set([...prev, ...detectedCounterparties])).sort((a, b) =>
+          a.localeCompare(b)
+        );
+        if (merged.length !== prev.length) {
+          try {
+            localStorage.setItem("stored_parties_directory", JSON.stringify(merged));
+          } catch (e) {}
+          return merged;
+        }
+        return prev;
+      });
+    }
+  }, [detectedCounterparties]);
+
   // Party counts for directory
   const partyCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     annotatedTransactions.forEach((t) => {
-      if (t.party_name) {
-        counts[t.party_name] = (counts[t.party_name] || 0) + 1;
+      const party = t.party_name || t.party_match_key;
+      if (party) {
+        counts[party] = (counts[party] || 0) + 1;
       }
     });
     return counts;

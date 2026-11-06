@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { Users, Plus, Trash2 } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { Users, Plus, Search, Sparkles } from "lucide-react";
 import { Card } from "../ui/card";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
@@ -15,6 +15,7 @@ interface PartyManagerProps {
 export function PartyManager({ storedParties, partyCounts, onAddParty }: PartyManagerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [newPartyInput, setNewPartyInput] = useState("");
+  const [searchFilter, setSearchFilter] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleAdd = async (e: React.FormEvent) => {
@@ -30,6 +31,12 @@ export function PartyManager({ storedParties, partyCounts, onAddParty }: PartyMa
       setIsSubmitting(false);
     }
   };
+
+  const filteredParties = useMemo(() => {
+    const q = searchFilter.trim().toLowerCase();
+    if (!q) return storedParties;
+    return storedParties.filter((p) => p.toLowerCase().includes(q));
+  }, [storedParties, searchFilter]);
 
   return (
     <Card className="p-4 border-slate-800 bg-slate-900/40 space-y-3">
@@ -50,6 +57,10 @@ export function PartyManager({ storedParties, partyCounts, onAddParty }: PartyMa
           {isOpen ? "Close Directory" : "Manage Directory"}
         </Button>
       </div>
+
+      <p className="text-xs text-slate-400">
+        Directory of registered counterparties & merchants detected in statement narrations. Used for AI matching & auto-complete.
+      </p>
 
       {isOpen && (
         <div className="space-y-3 pt-2">
@@ -74,24 +85,40 @@ export function PartyManager({ storedParties, partyCounts, onAddParty }: PartyMa
             </Button>
           </form>
 
+          {/* Search inside directory if more than 5 parties */}
+          {storedParties.length > 5 && (
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
+              <Input
+                type="text"
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                placeholder="Search registered parties..."
+                className="h-8 pl-8 text-xs bg-slate-950 border-slate-800"
+              />
+            </div>
+          )}
+
           {/* List */}
           <div className="rounded-lg border border-slate-800 bg-slate-950 overflow-hidden max-h-60 overflow-y-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-900/80 text-slate-400 border-b border-slate-800">
                 <tr>
-                  <th className="py-2 px-3">Party Name</th>
-                  <th className="py-2 px-3 text-right">Transactions Assigned</th>
+                  <th className="py-2 px-3">Party / Counterparty Name</th>
+                  <th className="py-2 px-3 text-right">Transactions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">
-                {storedParties.length === 0 ? (
+                {filteredParties.length === 0 ? (
                   <tr>
                     <td colSpan={2} className="py-4 px-3 text-center text-slate-500 italic">
-                      No registered party names yet. Type a name above to add, or assign names to transactions.
+                      {storedParties.length === 0
+                        ? "No registered party names yet. Type a name above to add, or upload statements with detected narrations."
+                        : "No parties match your search filter."}
                     </td>
                   </tr>
                 ) : (
-                  storedParties.map((p) => (
+                  filteredParties.map((p) => (
                     <tr key={p} className="hover:bg-slate-900/40">
                       <td className="py-2 px-3 text-slate-200">{p}</td>
                       <td className="py-2 px-3 text-right text-slate-400">

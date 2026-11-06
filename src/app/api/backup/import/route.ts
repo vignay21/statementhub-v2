@@ -5,6 +5,7 @@ import { savePartyNameInDB, savePartyMappingInDB } from "@/lib/supabase/party-ma
 import { computeFingerprint } from "@/lib/business/fingerprint";
 import { normalizeDate } from "@/lib/formatters/date";
 import { parseAmount } from "@/lib/parsers/amount-parser";
+import { extractPartyMatchKey } from "@/lib/business/party-match-key";
 import { Transaction } from "@/types/transaction";
 
 export async function POST(req: NextRequest) {
@@ -38,29 +39,30 @@ export async function POST(req: NextRequest) {
         rawTransactions = Object.values(backup.transactions);
       }
 
-      rawParties = backup.stored_parties || backup.parties || backup.party_names;
-      rawMappings = backup.party_mappings || backup.mappings;
+      rawParties =
+        backup.stored_parties ||
+        backup.storedParties ||
+        backup.parties ||
+        backup.party_names ||
+        backup.partyNames;
+      rawMappings =
+        backup.party_mappings ||
+        backup.partyMappings ||
+        backup.mappings;
     }
 
     // 1. Safely restore stored parties (supports arrays or dictionary objects)
-    const storedParties: string[] = [];
+    const storedPartiesSet = new Set<string>();
     if (Array.isArray(rawParties)) {
       rawParties.forEach((p) => {
         const val = typeof p === "object" && p ? p.name || p.party_name || "" : String(p || "");
-        if (val.trim()) storedParties.push(val.trim());
+        if (val.trim()) storedPartiesSet.add(val.trim());
       });
     } else if (rawParties && typeof rawParties === "object") {
-      Object.keys(rawParties).forEach((k) => {
-        if (k.trim()) storedParties.push(k.trim());
+      Object.entries(rawParties).forEach(([k, v]) => {
+        if (typeof v === "string" && v.trim() && isNaN(Number(v))) storedPartiesSet.add(v.trim());
+        else if (k.trim() && isNaN(Number(k))) storedPartiesSet.add(k.trim());
       });
-    }
-
-    for (const name of storedParties) {
-      try {
-        await savePartyNameInDB(client, name);
-      } catch (err) {
-        console.warn("Failed to restore party name:", name, err);
-      }
     }
 
     // 2. Safely restore party mappings (supports array of objects or dictionary key-value map)
@@ -68,21 +70,45 @@ export async function POST(req: NextRequest) {
     if (Array.isArray(rawMappings)) {
       rawMappings.forEach((m) => {
         if (m && typeof m === "object" && m.match_key && m.party_name) {
+          const name = String(m.party_name).trim();
           partyMappings.push({
             match_key: String(m.match_key).trim(),
-            party_name: String(m.party_name).trim(),
+            party_name: name,
           });
+          if (name) storedPartiesSet.add(name);
         }
       });
     } else if (rawMappings && typeof rawMappings === "object") {
       Object.entries(rawMappings).forEach(([match_key, party_name]) => {
         if (match_key && party_name) {
+          const name = String(party_name).trim();
           partyMappings.push({
             match_key: String(match_key).trim(),
-            party_name: String(party_name).trim(),
+            party_name: name,
           });
+          if (name) storedPartiesSet.add(name);
         }
       });
+    }
+
+    // 3. Harvest any party_name from raw transactions
+    if (Array.isArray(rawTransactions)) {
+      rawTransactions.forEach((t) => {
+        if (t && typeof t === "object") {
+          const p = String(t.party_name || t.party || "").trim();
+          if (p && p.length > 2) storedPartiesSet.add(p);
+        }
+      });
+    }
+
+    const storedParties = Array.from(storedPartiesSet);
+
+    for (const name of storedParties) {
+      try {
+        await savePartyNameInDB(client, name);
+      } catch (err) {
+        console.warn("Failed to restore party name:", name, err);
+      }
     }
 
     for (const mapping of partyMappings) {
@@ -124,7 +150,8 @@ export async function POST(req: NextRequest) {
         t.balance !== undefined && t.balance !== null && !isNaN(Number(t.balance))
           ? Number(t.balance)
           : null;
-      const party_match_key = String(t.party_match_key || "").trim();
+      const party_match_key =
+        String(t.party_match_key || "").trim() || extractPartyMatchKey(description);
       const source_file = String(t.source_file || "backup_import.json").trim();
 
       let fingerprint = String(t.fingerprint || "").trim();

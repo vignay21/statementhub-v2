@@ -3,6 +3,7 @@ import { Transaction } from "@/types/transaction";
 import { computeFingerprint } from "../business/fingerprint";
 import { normalizeDate } from "../formatters/date";
 import { parseAmount } from "./amount-parser";
+import { extractPartyMatchKey } from "../business/party-match-key";
 
 export async function parseJSONStatement(file: File): Promise<ImportedStatement> {
   const text = await file.text();
@@ -54,7 +55,7 @@ export async function parseJSONStatement(file: File): Promise<ImportedStatement>
       t.balance !== undefined && t.balance !== null && !isNaN(Number(t.balance))
         ? Number(t.balance)
         : null;
-    const party_match_key = String(t.party_match_key || "").trim();
+    const party_match_key = String(t.party_match_key || "").trim() || extractPartyMatchKey(description);
 
     let fingerprint = String(t.fingerprint || "").trim();
     if (!fingerprint) {
