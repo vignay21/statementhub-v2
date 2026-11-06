@@ -10,9 +10,15 @@ interface PartyManagerProps {
   storedParties: string[];
   partyCounts: Record<string, number>;
   onAddParty: (name: string) => Promise<void>;
+  onResetDirectory?: () => Promise<void>;
 }
 
-export function PartyManager({ storedParties, partyCounts, onAddParty }: PartyManagerProps) {
+export function PartyManager({
+  storedParties,
+  partyCounts,
+  onAddParty,
+  onResetDirectory,
+}: PartyManagerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [newPartyInput, setNewPartyInput] = useState("");
   const [searchFilter, setSearchFilter] = useState("");
@@ -85,9 +91,9 @@ export function PartyManager({ storedParties, partyCounts, onAddParty }: PartyMa
             </Button>
           </form>
 
-          {/* Search inside directory if more than 5 parties */}
-          {storedParties.length > 5 && (
-            <div className="relative">
+          {/* Search inside directory & Reset */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-500" />
               <Input
                 type="text"
@@ -97,7 +103,19 @@ export function PartyManager({ storedParties, partyCounts, onAddParty }: PartyMa
                 className="h-8 pl-8 text-xs bg-slate-950 border-slate-800"
               />
             </div>
-          )}
+            {onResetDirectory && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onResetDirectory}
+                className="h-8 px-2.5 text-[11px] text-slate-400 hover:text-rose-400 hover:border-rose-500/40 shrink-0"
+                title="Prune directory back to the authorized 158 list"
+              >
+                Reset to 158 List
+              </Button>
+            )}
+          </div>
 
           {/* List */}
           <div className="rounded-lg border border-slate-800 bg-slate-950 overflow-hidden max-h-60 overflow-y-auto">

@@ -85,37 +85,54 @@ export default function Home() {
         }
       } catch (e) {}
 
-      // 3. Local offline cache fallback
+      // 3. Purge old polluted localStorage key
+      try {
+        localStorage.removeItem("stored_parties_directory");
+      } catch (e) {}
+
+      // 4. Local offline cache fallback (versioned key stored_parties_v2)
       let localParties: string[] = [];
       try {
-        const raw = localStorage.getItem("stored_parties_directory");
+        const raw = localStorage.getItem("stored_parties_v2");
         if (raw) {
           const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed) && parsed.length > 0 && parsed.length <= 250) {
             localParties = parsed;
           }
         }
       } catch (e) {}
 
-      // 4. Also collect distinct explicitly assigned party names on transactions
+      // 5. Also collect distinct explicitly assigned party names on transactions
       const txParties = loadedTransactions
         .map((t) => t.party_name?.trim())
         .filter((n): n is string => Boolean(n));
 
-      const combinedParties = Array.from(
+      // Combine baseline 158 + DB + local + explicitly assigned
+      const candidateParties = Array.from(
         new Set([
           ...DEFAULT_STORED_PARTY_NAMES,
           ...partiesFromDB,
           ...localParties,
           ...txParties,
         ])
-      )
-        .filter((p) => p && typeof p === "string" && p.trim())
+      );
+
+      // Clean filter: keep default 158 + any names explicitly assigned to transactions
+      const authorizedSet = new Set(DEFAULT_STORED_PARTY_NAMES);
+      const cleanTxSet = new Set(txParties);
+
+      const combinedParties = candidateParties
+        .filter(
+          (p) =>
+            p &&
+            typeof p === "string" &&
+            (authorizedSet.has(p) || cleanTxSet.has(p) || candidateParties.length <= 180)
+        )
         .sort((a, b) => a.localeCompare(b));
 
       setStoredParties(combinedParties);
       try {
-        localStorage.setItem("stored_parties_directory", JSON.stringify(combinedParties));
+        localStorage.setItem("stored_parties_v2", JSON.stringify(combinedParties));
       } catch (e) {}
 
       // 5. Fetch storage stats
@@ -202,7 +219,7 @@ export default function Home() {
       setStoredParties((prev) => {
         const next = Array.from(new Set([...prev, ...newParties])).sort((a, b) => a.localeCompare(b));
         try {
-          localStorage.setItem("stored_parties_directory", JSON.stringify(next));
+          localStorage.setItem("stored_parties_v2", JSON.stringify(next));
         } catch (e) {}
         return next;
       });
@@ -243,7 +260,7 @@ export default function Home() {
       setStoredParties((prev) => {
         const next = Array.from(new Set([...prev, clean])).sort((a, b) => a.localeCompare(b));
         try {
-          localStorage.setItem("stored_parties_directory", JSON.stringify(next));
+          localStorage.setItem("stored_parties_v2", JSON.stringify(next));
         } catch (e) {}
         return next;
       });
@@ -281,7 +298,7 @@ export default function Home() {
       setStoredParties((prev) => {
         const next = Array.from(new Set([...prev, ...approvedNames])).sort((a, b) => a.localeCompare(b));
         try {
-          localStorage.setItem("stored_parties_directory", JSON.stringify(next));
+          localStorage.setItem("stored_parties_v2", JSON.stringify(next));
         } catch (e) {}
         return next;
       });
@@ -852,12 +869,12 @@ export default function Home() {
             storedParties={storedParties}
             partyCounts={partyCounts}
             onAddParty={async (name) => {
-              const clean = name.trim();
+              const clean = name.trim().toUpperCase();
               if (!clean) return;
               setStoredParties((prev) => {
                 const next = Array.from(new Set([...prev, clean])).sort((a, b) => a.localeCompare(b));
                 try {
-                  localStorage.setItem("stored_parties_directory", JSON.stringify(next));
+                  localStorage.setItem("stored_parties_v2", JSON.stringify(next));
                 } catch (e) {}
                 return next;
               });
@@ -868,6 +885,14 @@ export default function Home() {
                   body: JSON.stringify({ party_name: clean }),
                 });
               } catch (e) {}
+            }}
+            onResetDirectory={async () => {
+              try {
+                localStorage.removeItem("stored_parties_directory");
+                localStorage.setItem("stored_parties_v2", JSON.stringify(DEFAULT_STORED_PARTY_NAMES));
+                await fetch("/api/transactions/party", { method: "DELETE" });
+              } catch (e) {}
+              setStoredParties(DEFAULT_STORED_PARTY_NAMES);
             }}
           />
         </div>

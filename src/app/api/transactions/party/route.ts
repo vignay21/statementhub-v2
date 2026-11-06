@@ -8,20 +8,54 @@ import {
   savePartyNameInDB,
   savePartyMappingInDB,
   fetchPartyNamesFromDB,
+  resetPartyNamesInDB,
 } from "@/lib/supabase/party-mappings";
+import { DEFAULT_STORED_PARTY_NAMES } from "@/lib/constants/default-parties";
 
 export async function GET() {
   try {
     const client = getSupabaseServerClient();
     if (!client) {
-      return NextResponse.json({ parties: [] });
+      return NextResponse.json({ parties: DEFAULT_STORED_PARTY_NAMES });
     }
 
     const parties = await fetchPartyNamesFromDB(client);
-    return NextResponse.json({ parties });
+
+    // If corrupted with > 200 items (e.g. 1098 raw statement narrations), automatically prune back to authorized 158
+    if (parties.length > 200) {
+      console.log(`Pruning polluted party directory (${parties.length} items) back to authorized 158 list...`);
+      await resetPartyNamesInDB(client, DEFAULT_STORED_PARTY_NAMES);
+      return NextResponse.json({ parties: DEFAULT_STORED_PARTY_NAMES });
+    }
+
+    // Merge baseline 158 with any valid party names
+    const merged = Array.from(new Set([...DEFAULT_STORED_PARTY_NAMES, ...parties])).sort((a, b) =>
+      a.localeCompare(b)
+    );
+
+    return NextResponse.json({ parties: merged });
   } catch (err: any) {
     console.error("API /transactions/party GET error:", err);
-    return NextResponse.json({ parties: [] });
+    return NextResponse.json({ parties: DEFAULT_STORED_PARTY_NAMES });
+  }
+}
+
+export async function DELETE() {
+  try {
+    const client = getSupabaseServerClient();
+    if (!client) {
+      return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
+    }
+
+    await resetPartyNamesInDB(client, DEFAULT_STORED_PARTY_NAMES);
+    return NextResponse.json({
+      success: true,
+      message: "Reset directory to authorized 158 party names",
+      count: DEFAULT_STORED_PARTY_NAMES.length,
+      parties: DEFAULT_STORED_PARTY_NAMES,
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 

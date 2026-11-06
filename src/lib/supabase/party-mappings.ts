@@ -38,6 +38,21 @@ export async function savePartyNameInDB(client: SupabaseClient, name: string): P
   return true;
 }
 
+export async function resetPartyNamesInDB(
+  client: SupabaseClient,
+  authorizedNames: string[]
+): Promise<boolean> {
+  try {
+    await client.from("party_names").delete().neq("name", "__keep__");
+    const rows = authorizedNames.map((n) => ({ name: n.trim() }));
+    const { error } = await client.from("party_names").insert(rows);
+    return !error;
+  } catch (err) {
+    console.error("Failed to reset party names in DB:", err);
+    return false;
+  }
+}
+
 export async function fetchPartyMappingsFromDB(client: SupabaseClient): Promise<PartyMapping[]> {
   const { data, error } = await client
     .from("party_mappings")
