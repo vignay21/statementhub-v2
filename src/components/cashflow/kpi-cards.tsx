@@ -12,6 +12,8 @@ interface CashflowKPIProps {
   profitMargin: number;
   totalFD: number;
   totalContra: number;
+  periodLabel?: string;
+  transactionCount?: number;
 }
 
 export function CashflowKPICards({
@@ -21,11 +23,24 @@ export function CashflowKPICards({
   profitMargin,
   totalFD,
   totalContra,
+  periodLabel,
+  transactionCount,
 }: CashflowKPIProps) {
   const isProfitable = netProfit >= 0;
 
   return (
     <div className="space-y-3">
+      {periodLabel && (
+        <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-200">Operating Financials</span>
+            <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 text-[11px] font-medium">
+              Period: {periodLabel} {transactionCount !== undefined ? `(${transactionCount} transactions)` : ""}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Row 1: Primary Operating Financials */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* 1. Received */}

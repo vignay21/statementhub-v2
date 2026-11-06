@@ -49,6 +49,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBank, setSelectedBank] = useState("all");
   const [period, setPeriod] = useState<PeriodFilter>("all");
+  const [selectedMonth, setSelectedMonth] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("date_desc");
@@ -203,23 +204,45 @@ export default function Home() {
     return Array.from(set);
   }, [annotatedTransactions]);
 
-  // Filter & Sort Transactions
-  const filteredTransactions = useMemo(() => {
+  // Distinct months present in uploaded statements
+  const availableMonths = useMemo(() => {
+    const map = new Map<string, { label: string; value: string; count: number; time: number }>();
+    annotatedTransactions.forEach((t) => {
+      if (!t.date) return;
+      const parts = t.date.split("-");
+      if (parts.length === 3) {
+        const monthNum = parseInt(parts[1], 10);
+        const yearNum = parseInt(parts[2], 10);
+        if (monthNum >= 1 && monthNum <= 12 && yearNum > 1900) {
+          const value = `${String(monthNum).padStart(2, "0")}-${yearNum}`;
+          const dateObj = new Date(yearNum, monthNum - 1, 1);
+          const label = dateObj.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+          const existing = map.get(value);
+          if (existing) {
+            existing.count += 1;
+          } else {
+            map.set(value, { label, value, count: 1, time: dateObj.getTime() });
+          }
+        }
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => b.time - a.time);
+  }, [annotatedTransactions]);
+
+  // Set default selected month if not set
+  useEffect(() => {
+    if (!selectedMonth && availableMonths.length > 0) {
+      setSelectedMonth(availableMonths[0].value);
+    }
+  }, [availableMonths, selectedMonth]);
+
+  // Base transactions filtered by Bank and Period
+  const periodFilteredTransactions = useMemo(() => {
     let result = annotatedTransactions;
 
     // Bank filter
     if (selectedBank !== "all") {
       result = result.filter((t) => t.bank === selectedBank);
-    }
-
-    // Exclude Contra
-    if (excludeContra) {
-      result = result.filter((t) => !t.is_self_transfer);
-    }
-
-    // Exclude FD
-    if (excludeFD) {
-      result = result.filter((t) => !t.is_fd_investment);
     }
 
     // Period filter
@@ -231,9 +254,20 @@ export default function Home() {
         const parts = t.date.split("-");
         return parts[1] === curMonth && parts[2] === curYear;
       });
+    } else if (period === "last_month") {
+      const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const curMonth = String(lm.getMonth() + 1).padStart(2, "0");
+      const curYear = String(lm.getFullYear());
+      result = result.filter((t) => {
+        const parts = t.date.split("-");
+        return parts[1] === curMonth && parts[2] === curYear;
+      });
     } else if (period === "last_30_days") {
       const thirtyDaysAgo = now.getTime() - 30 * 24 * 60 * 60 * 1000;
       result = result.filter((t) => parseDateToTime(t.date) >= thirtyDaysAgo);
+    } else if (period === "last_90_days") {
+      const ninetyDaysAgo = now.getTime() - 90 * 24 * 60 * 60 * 1000;
+      result = result.filter((t) => parseDateToTime(t.date) >= ninetyDaysAgo);
     } else if (period === "fy") {
       // Current Indian FY: Apr 1 of current or last year to Mar 31 of next year
       const curYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
@@ -243,6 +277,21 @@ export default function Home() {
         const time = parseDateToTime(t.date);
         return time >= startFY && time <= endFY;
       });
+    } else if (period === "prev_fy") {
+      // Previous Indian FY
+      const curYear = (now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1) - 1;
+      const startFY = new Date(curYear, 3, 1).getTime();
+      const endFY = new Date(curYear + 1, 2, 31, 23, 59, 59).getTime();
+      result = result.filter((t) => {
+        const time = parseDateToTime(t.date);
+        return time >= startFY && time <= endFY;
+      });
+    } else if (period === "month_select" && selectedMonth) {
+      const [selM, selY] = selectedMonth.split("-");
+      result = result.filter((t) => {
+        const parts = t.date.split("-");
+        return parts[1] === selM && parts[2] === selY;
+      });
     } else if (period === "custom" && startDate && endDate) {
       const start = new Date(startDate).getTime();
       const end = new Date(endDate).getTime() + 86400000;
@@ -250,6 +299,65 @@ export default function Home() {
         const time = parseDateToTime(t.date);
         return time >= start && time <= end;
       });
+    }
+
+    return result;
+  }, [
+    annotatedTransactions,
+    selectedBank,
+    period,
+    selectedMonth,
+    startDate,
+    endDate,
+  ]);
+
+  // Financial metrics for selected period (Business Received, Business Sent, Net Operating Profit)
+  const quickFinancials = useMemo(() => {
+    let inflow = 0;
+    let outflow = 0;
+    let contraTotal = 0;
+    let fdTotal = 0;
+
+    periodFilteredTransactions.forEach((t) => {
+      if (t.is_self_transfer) {
+        contraTotal += t.amount;
+        if (excludeContra) return;
+      }
+      if (t.is_fd_investment) {
+        fdTotal += t.amount;
+        if (excludeFD) return;
+      }
+
+      if (t.type === "Credit") inflow += t.amount;
+      if (t.type === "Debit") outflow += t.amount;
+    });
+
+    const netProfit = inflow - outflow;
+    const profitMargin = inflow > 0 ? (netProfit / inflow) * 100 : 0;
+
+    return {
+      inflow,
+      outflow,
+      netProfit,
+      profitMargin,
+      contraTotal,
+      fdTotal,
+      transactionCount: periodFilteredTransactions.length,
+    };
+  }, [periodFilteredTransactions, excludeContra, excludeFD]);
+
+  // Detailed Filter & Sort for Transactions Table
+  const filteredTransactions = useMemo(() => {
+    let result = periodFilteredTransactions;
+
+    // Exclude Contra
+    if (excludeContra) {
+      result = result.filter((t) => !t.is_self_transfer);
+    }
+
+    // Exclude FD
+    if (excludeFD) {
+      result = result.filter((t) => !t.is_fd_investment);
     }
 
     // Search query filter
@@ -304,57 +412,19 @@ export default function Home() {
       return 0;
     });
   }, [
-    annotatedTransactions,
-    selectedBank,
+    periodFilteredTransactions,
     excludeContra,
     excludeFD,
-    period,
-    startDate,
-    endDate,
     searchQuery,
     searchMode,
     sortOrder,
   ]);
 
-  // Financial metrics for Quick Cashflow Ribbon
-  const quickFinancials = useMemo(() => {
-    let inflow = 0;
-    let outflow = 0;
-    let contraTotal = 0;
-    let fdTotal = 0;
-
-    annotatedTransactions.forEach((t) => {
-      if (t.is_self_transfer) {
-        contraTotal += t.amount;
-        if (excludeContra) return;
-      }
-      if (t.is_fd_investment) {
-        fdTotal += t.amount;
-        if (excludeFD) return;
-      }
-
-      if (t.type === "Credit") inflow += t.amount;
-      if (t.type === "Debit") outflow += t.amount;
-    });
-
-    const netProfit = inflow - outflow;
-    const profitMargin = inflow > 0 ? (netProfit / inflow) * 100 : 0;
-
-    return {
-      inflow,
-      outflow,
-      netProfit,
-      profitMargin,
-      contraTotal,
-      fdTotal,
-    };
-  }, [annotatedTransactions, excludeContra, excludeFD]);
-
   // Monthly aggregated data for Cash Flow tab
   const monthlyData = useMemo(() => {
     const monthMap = new Map<string, MonthlyDataPoint>();
 
-    annotatedTransactions.forEach((t) => {
+    periodFilteredTransactions.forEach((t) => {
       const parts = t.date.split("-");
       if (parts.length < 3) return;
       const monthYear = `${parts[1]}-${parts[2]}`; // MM-YYYY
@@ -397,7 +467,44 @@ export default function Home() {
       const [mB, yB] = b.month.split("-").map(Number);
       return yA !== yB ? yA - yB : mA - mB;
     });
-  }, [annotatedTransactions, excludeContra, excludeFD]);
+  }, [periodFilteredTransactions, excludeContra, excludeFD]);
+
+  // Active period display label
+  const getPeriodLabel = () => {
+    switch (period) {
+      case "this_month": {
+        const now = new Date();
+        return `This Month (${now.toLocaleDateString("en-IN", { month: "short", year: "numeric" })})`;
+      }
+      case "last_month": {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 1);
+        return `Last Month (${d.toLocaleDateString("en-IN", { month: "short", year: "numeric" })})`;
+      }
+      case "last_30_days":
+        return "Last 30 Days";
+      case "last_90_days":
+        return "Last 90 Days (Quarter)";
+      case "fy": {
+        const now = new Date();
+        const y = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+        return `FY ${y}-${String(y + 1).slice(2)}`;
+      }
+      case "prev_fy": {
+        const now = new Date();
+        const y = (now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1) - 1;
+        return `Prev FY ${y}-${String(y + 1).slice(2)}`;
+      }
+      case "month_select": {
+        const found = availableMonths.find((m) => m.value === selectedMonth);
+        return found ? found.label : (availableMonths[0]?.label || "Selected Month");
+      }
+      case "custom":
+        return startDate && endDate ? `${startDate} to ${endDate}` : "Custom Date Range";
+      default:
+        return "All Time";
+    }
+  };
 
   // Unassigned transactions for AI Assistant
   const unassigned = useMemo(() => {
@@ -461,6 +568,27 @@ export default function Home() {
         {/* Tab 1: Unified Transaction Search */}
         {activeTab === "search" && (
           <div className="space-y-4">
+            {/* Period & Filter Controls */}
+            <FiltersBar
+              period={period}
+              onPeriodChange={setPeriod}
+              availableMonths={availableMonths}
+              selectedMonth={selectedMonth}
+              onSelectedMonthChange={setSelectedMonth}
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+              sort={sortOrder}
+              onSortChange={setSortOrder}
+              excludeContra={excludeContra}
+              onExcludeContraChange={setExcludeContra}
+              excludeFD={excludeFD}
+              onExcludeFDChange={setExcludeFD}
+              activePeriodLabel={getPeriodLabel()}
+              matchingCount={quickFinancials.transactionCount}
+            />
+
             {/* Quick Cash Flow Ribbon */}
             <QuickCashflow
               totalInflow={quickFinancials.inflow}
@@ -468,6 +596,8 @@ export default function Home() {
               netProfit={quickFinancials.netProfit}
               excludedContraTotal={quickFinancials.contraTotal}
               excludedFDTotal={quickFinancials.fdTotal}
+              periodLabel={getPeriodLabel()}
+              transactionCount={quickFinancials.transactionCount}
             />
 
             {/* Bank Color Legend */}
@@ -495,22 +625,6 @@ export default function Home() {
               storedParties={storedParties}
             />
 
-            {/* Period & Filter Controls */}
-            <FiltersBar
-              period={period}
-              onPeriodChange={setPeriod}
-              startDate={startDate}
-              endDate={endDate}
-              onStartDateChange={setStartDate}
-              onEndDateChange={setEndDate}
-              sort={sortOrder}
-              onSortChange={setSortOrder}
-              excludeContra={excludeContra}
-              onExcludeContraChange={setExcludeContra}
-              excludeFD={excludeFD}
-              onExcludeFDChange={setExcludeFD}
-            />
-
             {/* Transaction Data Table */}
             <TransactionTable
               transactions={filteredTransactions}
@@ -523,6 +637,26 @@ export default function Home() {
         {/* Tab 2: Monthly Profit & Cash Flow */}
         {activeTab === "cashflow" && (
           <div className="space-y-5">
+            {/* Period & Filter Controls (Available in Cash Flow Dashboard) */}
+            <FiltersBar
+              period={period}
+              onPeriodChange={setPeriod}
+              availableMonths={availableMonths}
+              selectedMonth={selectedMonth}
+              onSelectedMonthChange={setSelectedMonth}
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+              excludeContra={excludeContra}
+              onExcludeContraChange={setExcludeContra}
+              excludeFD={excludeFD}
+              onExcludeFDChange={setExcludeFD}
+              hideSort={true}
+              activePeriodLabel={getPeriodLabel()}
+              matchingCount={quickFinancials.transactionCount}
+            />
+
             {/* 6 KPI Metric Cards */}
             <CashflowKPICards
               totalInflow={quickFinancials.inflow}
@@ -531,13 +665,15 @@ export default function Home() {
               profitMargin={quickFinancials.profitMargin}
               totalFD={quickFinancials.fdTotal}
               totalContra={quickFinancials.contraTotal}
+              periodLabel={getPeriodLabel()}
+              transactionCount={quickFinancials.transactionCount}
             />
 
             {/* Inflows vs Outflows Recharts Bar Chart */}
             <MonthlyChart data={monthlyData} />
 
             {/* Month-by-month Table + 3-Sheet Excel Export */}
-            <MonthlyTable data={monthlyData} allTransactions={annotatedTransactions} />
+            <MonthlyTable data={monthlyData} allTransactions={periodFilteredTransactions} />
           </div>
         )}
 

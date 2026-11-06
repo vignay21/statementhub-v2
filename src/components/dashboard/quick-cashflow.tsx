@@ -11,6 +11,8 @@ interface QuickCashflowProps {
   netProfit: number;
   excludedContraTotal: number;
   excludedFDTotal: number;
+  periodLabel?: string;
+  transactionCount?: number;
 }
 
 export function QuickCashflow({
@@ -19,11 +21,25 @@ export function QuickCashflow({
   netProfit,
   excludedContraTotal,
   excludedFDTotal,
+  periodLabel,
+  transactionCount,
 }: QuickCashflowProps) {
   const isProfitable = netProfit >= 0;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 my-3">
+    <div className="space-y-2 my-3">
+      {periodLabel && (
+        <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-200">Business Cash Flow Summary</span>
+            <span className="px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 text-[11px] font-medium">
+              Period: {periodLabel} {transactionCount !== undefined ? `(${transactionCount} txns)` : ""}
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
       {/* 1. Business Inflows */}
       <Card className="p-4 bg-gradient-to-br from-slate-900/90 to-emerald-950/20 border-slate-800">
         <div className="flex items-center justify-between">
@@ -95,6 +111,7 @@ export function QuickCashflow({
           {isProfitable ? "🟢 Surplus across selected period" : "🔴 Deficit in selected period"}
         </p>
       </Card>
+      </div>
     </div>
   );
 }
