@@ -61,23 +61,60 @@ export default function Home() {
     setIsRefreshing(true);
     try {
       // 1. Fetch transactions
+      let loadedTransactions: Transaction[] = [];
       const res = await fetch("/api/transactions/search");
       if (res.ok) {
         const data = await res.json();
         if (data.transactions && data.transactions.length > 0) {
+          loadedTransactions = data.transactions;
           setTransactions(data.transactions);
           setSupabaseConnected(true);
         }
       }
 
-      // 2. Fetch storage stats
+      // 2. Fetch stored parties from backend
+      let partiesFromDB: string[] = [];
+      try {
+        const partyRes = await fetch("/api/transactions/party");
+        if (partyRes.ok) {
+          const partyData = await partyRes.json();
+          if (Array.isArray(partyData.parties)) {
+            partiesFromDB = partyData.parties;
+          }
+        }
+      } catch (e) {}
+
+      // 3. Local offline cache fallback
+      let localParties: string[] = [];
+      try {
+        const raw = localStorage.getItem("stored_parties_directory");
+        if (raw) localParties = JSON.parse(raw);
+      } catch (e) {}
+
+      // 4. Also collect distinct party names present on transactions
+      const txParties = loadedTransactions
+        .map((t) => t.party_name?.trim())
+        .filter((n): n is string => Boolean(n));
+
+      const combinedParties = Array.from(
+        new Set([...partiesFromDB, ...localParties, ...txParties])
+      )
+        .filter((p) => p && typeof p === "string" && p.trim())
+        .sort((a, b) => a.localeCompare(b));
+
+      setStoredParties(combinedParties);
+      try {
+        localStorage.setItem("stored_parties_directory", JSON.stringify(combinedParties));
+      } catch (e) {}
+
+      // 5. Fetch storage stats
       const statsRes = await fetch("/api/storage/stats");
       if (statsRes.ok) {
         const stats = await statsRes.json();
         setStorageStats(stats);
       }
 
-      // 3. Gemini usage
+      // 6. Gemini usage
       const usage = getLocalGeminiUsage();
       setGeminiRequestsLeft(usage.requestsRemaining);
     } catch (e) {
@@ -111,6 +148,20 @@ export default function Home() {
 
     if (allNew.length === 0) return;
 
+    // Harvest party names from uploaded transactions
+    const newParties = allNew
+      .map((t) => t.party_name?.trim())
+      .filter((n): n is string => Boolean(n));
+    if (newParties.length > 0) {
+      setStoredParties((prev) => {
+        const next = Array.from(new Set([...prev, ...newParties])).sort((a, b) => a.localeCompare(b));
+        try {
+          localStorage.setItem("stored_parties_directory", JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
+    }
+
     // Try cloud sync if connected
     try {
       const syncRes = await fetch("/api/transactions/sync", {
@@ -141,8 +192,15 @@ export default function Home() {
       prev.map((t) => (t.fingerprint === fingerprint ? { ...t, party_name: newParty } : t))
     );
 
-    if (newParty && !storedParties.includes(newParty)) {
-      setStoredParties((prev) => [...prev, newParty].sort());
+    if (newParty && newParty.trim()) {
+      const clean = newParty.trim();
+      setStoredParties((prev) => {
+        const next = Array.from(new Set([...prev, clean])).sort((a, b) => a.localeCompare(b));
+        try {
+          localStorage.setItem("stored_parties_directory", JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
     }
 
     try {
@@ -169,6 +227,19 @@ export default function Home() {
         return t;
       })
     );
+
+    const approvedNames = approved
+      .map((a) => a.partyName?.trim())
+      .filter((n): n is string => Boolean(n));
+    if (approvedNames.length > 0) {
+      setStoredParties((prev) => {
+        const next = Array.from(new Set([...prev, ...approvedNames])).sort((a, b) => a.localeCompare(b));
+        try {
+          localStorage.setItem("stored_parties_directory", JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
+    }
 
     // Sync to backend
     for (const item of approved) {
@@ -709,12 +780,20 @@ export default function Home() {
             storedParties={storedParties}
             partyCounts={partyCounts}
             onAddParty={async (name) => {
-              setStoredParties((prev) => [...prev, name].sort());
+              const clean = name.trim();
+              if (!clean) return;
+              setStoredParties((prev) => {
+                const next = Array.from(new Set([...prev, clean])).sort((a, b) => a.localeCompare(b));
+                try {
+                  localStorage.setItem("stored_parties_directory", JSON.stringify(next));
+                } catch (e) {}
+                return next;
+              });
               try {
                 await fetch("/api/transactions/party", {
-                  method: "PATCH",
+                  method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ party_name: name }),
+                  body: JSON.stringify({ party_name: clean }),
                 });
               } catch (e) {}
             }}

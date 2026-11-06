@@ -84,14 +84,22 @@ export function PartyManager({ storedParties, partyCounts, onAddParty }: PartyMa
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">
-                {storedParties.map((p) => (
-                  <tr key={p} className="hover:bg-slate-900/40">
-                    <td className="py-2 px-3 text-slate-200">{p}</td>
-                    <td className="py-2 px-3 text-right text-slate-400">
-                      {partyCounts[p] || 0}
+                {storedParties.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="py-4 px-3 text-center text-slate-500 italic">
+                      No registered party names yet. Type a name above to add, or assign names to transactions.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  storedParties.map((p) => (
+                    <tr key={p} className="hover:bg-slate-900/40">
+                      <td className="py-2 px-3 text-slate-200">{p}</td>
+                      <td className="py-2 px-3 text-right text-slate-400">
+                        {partyCounts[p] || 0}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
