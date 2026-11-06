@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGeminiClient } from "@/lib/ai/gemini-client";
+import { fetchLiveGeminiModels } from "@/lib/ai/gemini-models";
 import { normalizeDate } from "@/lib/formatters/date";
 import { parseAmount } from "@/lib/parsers/amount-parser";
 import { computeFingerprint } from "@/lib/business/fingerprint";
@@ -43,18 +44,15 @@ Each transaction must have:
 
 Return ONLY a valid JSON array of objects.`;
 
-    const modelsToTry = [
-      "gemini-2.5-flash",
-      "gemini-1.5-flash",
-      "gemini-1.5-pro",
-      "gemini-2.0-flash",
-    ];
+    // Query live available models on this key and try in order of priority
+    const modelsToTry = await fetchLiveGeminiModels(customKey);
 
     let responseText = "";
     let lastError: any = null;
 
     for (const modelName of modelsToTry) {
       try {
+        console.log(`[PDF Parser] Attempting extraction with model: ${modelName}...`);
         const model = genAI.getGenerativeModel({
           model: modelName,
           generationConfig: {
@@ -74,10 +72,13 @@ Return ONLY a valid JSON array of objects.`;
         ]);
 
         responseText = result.response.text();
-        if (responseText) break;
+        if (responseText) {
+          console.log(`[PDF Parser] Successfully extracted transactions using: ${modelName}`);
+          break;
+        }
       } catch (err: any) {
         lastError = err;
-        console.warn(`Model ${modelName} failed for PDF parse:`, err.message);
+        console.warn(`[PDF Parser] Model ${modelName} busy or unavailable (${err.message}). Trying next model...`);
       }
     }
 

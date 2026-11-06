@@ -1,4 +1,5 @@
 import { getGeminiClient } from "./gemini-client";
+import { fetchLiveGeminiModels } from "./gemini-models";
 import { Transaction } from "@/types/transaction";
 
 export interface PartySuggestion {
@@ -17,51 +18,7 @@ export interface SuggestionResult {
  * Fetch available models supporting generateContent from Gemini API.
  */
 export async function getAvailableModelsList(apiKey?: string): Promise<string[]> {
-  const key = apiKey || process.env.GEMINI_API_KEY;
-  if (!key) return [];
-
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`,
-      { cache: "no-store" }
-    );
-    if (res.ok) {
-      const data = await res.json();
-      const models = (data.models || [])
-        .filter((m: any) => (m.supportedGenerationMethods || []).includes("generateContent"))
-        .map((m: any) => m.name.replace("models/", ""));
-
-      // Priority sort: preferred flash models first
-      const priority = [
-        "gemini-3.5-flash",
-        "gemini-3.6-flash",
-        "gemini-3.5-flash-lite",
-        "gemini-3.7-flash",
-        "gemini-3.8-flash",
-      ];
-
-      const sorted = models.sort((a: string, b: string) => {
-        const idxA = priority.indexOf(a);
-        const idxB = priority.indexOf(b);
-        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-        if (idxA !== -1) return -1;
-        if (idxB !== -1) return 1;
-        return a.localeCompare(b);
-      });
-
-      return sorted;
-    }
-  } catch (e) {
-    console.warn("Could not list remote Gemini models, using default fallback list", e);
-  }
-
-  return [
-    "gemini-3.5-flash",
-    "gemini-3.6-flash",
-    "gemini-3.5-flash-lite",
-    "gemini-3.7-flash",
-    "gemini-3.8-flash",
-  ];
+  return await fetchLiveGeminiModels(apiKey);
 }
 
 /**
