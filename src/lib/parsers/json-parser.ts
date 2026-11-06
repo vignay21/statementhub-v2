@@ -4,6 +4,7 @@ import { computeFingerprint } from "../business/fingerprint";
 import { normalizeDate } from "../formatters/date";
 import { parseAmount } from "./amount-parser";
 import { extractPartyMatchKey } from "../business/party-match-key";
+import { extractIdentifier, isIFSCCode } from "./utr-extractor";
 
 export async function parseJSONStatement(file: File): Promise<ImportedStatement> {
   const text = await file.text();
@@ -51,7 +52,11 @@ export async function parseJSONStatement(file: File): Promise<ImportedStatement>
     const description = String(
       t.description || t.Description || t.narration || t.particulars || ""
     ).trim();
-    const utr = String(t.utr || t.UTR || t["UTR / Reference"] || t.ref || t.reference || "").trim();
+    let utr = String(t.utr || t.UTR || t["UTR / Reference"] || t.ref || t.reference || "").trim();
+    if (utr && isIFSCCode(utr)) {
+      const fixed = extractIdentifier(description, "");
+      utr = isIFSCCode(fixed) ? "" : fixed;
+    }
     const party_name = String(
       t["Assigned Business / Party Name"] ||
       t.party_name ||

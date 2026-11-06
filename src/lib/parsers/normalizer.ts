@@ -2,7 +2,7 @@ import { Transaction } from "@/types/transaction";
 import { ColumnMap } from "./column-mapper";
 import { normalizeDate } from "../formatters/date";
 import { parseAmount } from "./amount-parser";
-import { extractIdentifier } from "./utr-extractor";
+import { extractIdentifier, isIFSCCode } from "./utr-extractor";
 import { extractPartyMatchKey } from "../business/party-match-key";
 import { computeFingerprint } from "../business/fingerprint";
 
@@ -55,7 +55,10 @@ export async function normalizeStatementRows(
 
     // Extract reference
     const rawRef = columnMap.refCol >= 0 ? String(row[columnMap.refCol] || "").trim() : "";
-    const utr = extractIdentifier(description, rawRef);
+    let utr = extractIdentifier(description, rawRef);
+    if (isIFSCCode(utr)) {
+      utr = "";
+    }
 
     // Closing Balance
     let balance: number | null = null;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/client";
 import { syncTransactionsWithDB } from "@/lib/supabase/transactions";
+import { extractIdentifier, isIFSCCode } from "@/lib/parsers/utr-extractor";
 import { Transaction } from "@/types/transaction";
 
 export async function POST(req: NextRequest) {
@@ -20,7 +21,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ inserted: 0, skipped: 0, total: 0 });
     }
 
-    const result = await syncTransactionsWithDB(client, transactions);
+    const cleanedTransactions = transactions.map((t) => {
+      if (t.utr && isIFSCCode(t.utr)) {
+        const fixed = extractIdentifier(t.description, "");
+        return { ...t, utr: isIFSCCode(fixed) ? "" : fixed };
+      }
+      return t;
+    });
+
+    const result = await syncTransactionsWithDB(client, cleanedTransactions);
     return NextResponse.json(result);
   } catch (err: any) {
     console.error("API /transactions/sync error:", err);

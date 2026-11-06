@@ -10,6 +10,7 @@ import { detectFixedDeposits } from "@/lib/business/fd-detector";
 import { parseDateToTime } from "@/lib/formatters/date";
 import { getLocalGeminiUsage } from "@/lib/ai/usage-tracker";
 import { StorageStats } from "@/lib/supabase/storage-stats";
+import { extractIdentifier, isIFSCCode } from "@/lib/parsers/utr-extractor";
 
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
@@ -67,8 +68,15 @@ export default function Home() {
       if (res.ok) {
         const data = await res.json();
         if (data.transactions && data.transactions.length > 0) {
-          loadedTransactions = data.transactions;
-          setTransactions(data.transactions);
+          const cleaned = data.transactions.map((t: Transaction) => {
+            if (t.utr && isIFSCCode(t.utr)) {
+              const fixed = extractIdentifier(t.description, "");
+              return { ...t, utr: isIFSCCode(fixed) ? "" : fixed };
+            }
+            return t;
+          });
+          loadedTransactions = cleaned;
+          setTransactions(cleaned);
           setSupabaseConnected(true);
         }
       }
@@ -162,21 +170,34 @@ export default function Home() {
     const contraFlags = detectContraTransfers(transactions);
     const fdFlags = detectFixedDeposits(transactions);
 
-    // Compute duplicate UTRs
+    // Compute duplicate UTRs (never include IFSC codes)
     const utrCounts: Record<string, number> = {};
     transactions.forEach((t) => {
-      if (t.utr && t.utr.trim().length > 3) {
-        const u = t.utr.trim().toUpperCase();
+      let u = t.utr ? t.utr.trim().toUpperCase() : "";
+      if (u && isIFSCCode(u)) {
+        const fixed = extractIdentifier(t.description, "");
+        u = isIFSCCode(fixed) ? "" : fixed.toUpperCase();
+      }
+      if (u && u.length > 3 && !isIFSCCode(u)) {
         utrCounts[u] = (utrCounts[u] || 0) + 1;
       }
     });
 
-    return transactions.map((t, i) => ({
-      ...t,
-      is_self_transfer: contraFlags[i],
-      is_fd_investment: fdFlags[i],
-      is_duplicate_utr: Boolean(t.utr && utrCounts[t.utr.trim().toUpperCase()] > 1),
-    }));
+    return transactions.map((t, i) => {
+      let cleanUtr = t.utr ? t.utr.trim() : "";
+      if (cleanUtr && isIFSCCode(cleanUtr)) {
+        const fixed = extractIdentifier(t.description, "");
+        cleanUtr = isIFSCCode(fixed) ? "" : fixed;
+      }
+      const u = cleanUtr.toUpperCase();
+      return {
+        ...t,
+        utr: cleanUtr,
+        is_self_transfer: contraFlags[i],
+        is_fd_investment: fdFlags[i],
+        is_duplicate_utr: Boolean(u && !isIFSCCode(u) && utrCounts[u] > 1),
+      };
+    });
   }, [transactions]);
 
   // Latest recorded date per bank
@@ -207,7 +228,16 @@ export default function Home() {
   // Handle uploaded statements
   const handleStatementsParsed = async (statements: ImportedStatement[]) => {
     const allNew: Transaction[] = [];
-    statements.forEach((s) => allNew.push(...s.transactions));
+    statements.forEach((s) => {
+      const cleaned = s.transactions.map((t) => {
+        if (t.utr && isIFSCCode(t.utr)) {
+          const fixed = extractIdentifier(t.description, "");
+          return { ...t, utr: isIFSCCode(fixed) ? "" : fixed };
+        }
+        return t;
+      });
+      allNew.push(...cleaned);
+    });
 
     if (allNew.length === 0) return;
 
@@ -329,11 +359,13 @@ export default function Home() {
     return counts;
   }, [annotatedTransactions]);
 
-  // Unique UTRs for autocomplete
+  // Unique UTRs for autocomplete (excluding IFSC codes)
   const uniqueUTRs = useMemo(() => {
     const set = new Set<string>();
     annotatedTransactions.forEach((t) => {
-      if (t.utr && t.utr.trim()) set.add(t.utr.trim());
+      if (t.utr && t.utr.trim() && !isIFSCCode(t.utr.trim())) {
+        set.add(t.utr.trim());
+      }
     });
     return Array.from(set);
   }, [annotatedTransactions]);

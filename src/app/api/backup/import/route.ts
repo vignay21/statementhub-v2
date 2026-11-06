@@ -6,6 +6,7 @@ import { computeFingerprint } from "@/lib/business/fingerprint";
 import { normalizeDate } from "@/lib/formatters/date";
 import { parseAmount } from "@/lib/parsers/amount-parser";
 import { extractPartyMatchKey } from "@/lib/business/party-match-key";
+import { extractIdentifier, isIFSCCode } from "@/lib/parsers/utr-extractor";
 import { Transaction } from "@/types/transaction";
 
 export async function POST(req: NextRequest) {
@@ -153,9 +154,13 @@ export async function POST(req: NextRequest) {
       const description = String(
         t.description || t.Description || t.narration || t.particulars || ""
       ).trim();
-      const utr = String(
+      let utr = String(
         t.utr || t.UTR || t["UTR / Reference"] || t.ref || t.reference || t.ref_no || ""
       ).trim();
+      if (utr && isIFSCCode(utr)) {
+        const fixed = extractIdentifier(description, "");
+        utr = isIFSCCode(fixed) ? "" : fixed;
+      }
       const party_name = String(
         t["Assigned Business / Party Name"] ||
         t.party_name ||

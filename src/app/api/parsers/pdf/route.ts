@@ -5,6 +5,7 @@ import { normalizeDate } from "@/lib/formatters/date";
 import { parseAmount } from "@/lib/parsers/amount-parser";
 import { computeFingerprint } from "@/lib/business/fingerprint";
 import { extractPartyMatchKey } from "@/lib/business/party-match-key";
+import { extractIdentifier, isIFSCCode } from "@/lib/parsers/utr-extractor";
 import { Transaction } from "@/types/transaction";
 
 export async function POST(req: NextRequest) {
@@ -130,7 +131,11 @@ Return ONLY a valid JSON array of objects.`;
           : null;
 
       const party_match_key = extractPartyMatchKey(desc);
-      const fingerprint = await computeFingerprint(bank, date, amount, type, ref, desc, balance);
+      let utr = extractIdentifier(desc, ref);
+      if (isIFSCCode(utr)) {
+        utr = "";
+      }
+      const fingerprint = await computeFingerprint(bank, date, amount, type, utr, desc, balance);
 
       transactions.push({
         fingerprint,
@@ -140,7 +145,7 @@ Return ONLY a valid JSON array of objects.`;
         party_name: "",
         amount,
         type,
-        utr: ref,
+        utr,
         balance,
         party_match_key,
         source_file: file.name,
