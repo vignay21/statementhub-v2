@@ -1,6 +1,7 @@
 import { ImportedStatement, StatementParseResult } from "@/types/statement";
 import { parseCSVStatement } from "./csv-parser";
 import { parseExcelStatement } from "./excel-parser";
+import { parseJSONStatement } from "./json-parser";
 
 export async function parseStatementFile(file: File): Promise<ImportedStatement> {
   const ext = file.name.split(".").pop()?.toLowerCase();
@@ -9,6 +10,8 @@ export async function parseStatementFile(file: File): Promise<ImportedStatement>
     return await parseCSVStatement(file);
   } else if (ext === "xls" || ext === "xlsx") {
     return await parseExcelStatement(file);
+  } else if (ext === "json") {
+    return await parseJSONStatement(file);
   } else {
     throw new Error(`Unsupported file type .${ext} for file ${file.name}`);
   }
