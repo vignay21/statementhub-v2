@@ -199,16 +199,20 @@ export function TransactionTable({
                               <input
                                 type="text"
                                 value={partyInput}
-                                list="global-party-datalist"
                                 onChange={(e) => {
                                   setPartyInput(e.target.value);
                                   setShowSuggestions(true);
                                   setSuggestIndex(-1);
                                 }}
                                 onFocus={() => setShowSuggestions(true)}
+                                onBlur={() => {
+                                  // Small delay allows click on suggestion item to register before hiding
+                                  setTimeout(() => setShowSuggestions(false), 180);
+                                }}
                                 onKeyDown={(e) => {
                                   if (e.key === "ArrowDown") {
                                     e.preventDefault();
+                                    setShowSuggestions(true);
                                     setSuggestIndex((prev) =>
                                       Math.min(prev + 1, activeSuggestions.length - 1)
                                     );
@@ -399,13 +403,6 @@ export function TransactionTable({
           </div>
         )}
       </div>
-
-      {/* Global Datalist for Native Autocomplete Fallback */}
-      <datalist id="global-party-datalist">
-        {allSuggestions.map((s) => (
-          <option key={s} value={s} />
-        ))}
-      </datalist>
     </div>
   );
 }
