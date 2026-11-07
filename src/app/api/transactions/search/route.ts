@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/client";
 import { fetchTransactionsFromDB } from "@/lib/supabase/transactions";
 import { extractIdentifier, isIFSCCode } from "@/lib/parsers/utr-extractor";
+import { inferBank } from "@/lib/parsers/bank-detector";
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,11 +19,19 @@ export async function GET(req: NextRequest) {
 
     const transactions = await fetchTransactionsFromDB(client, limit);
     const cleanedTransactions = transactions.map((t) => {
-      if (t.utr && isIFSCCode(t.utr)) {
+      let utr = t.utr;
+      if (utr && isIFSCCode(utr)) {
         const fixed = extractIdentifier(t.description, "");
-        return { ...t, utr: isIFSCCode(fixed) ? "" : fixed };
+        utr = isIFSCCode(fixed) ? "" : fixed;
       }
-      return t;
+      let bank = t.bank;
+      if (!bank || bank === "Unknown Bank" || bank === "Other Bank") {
+        const inferred = inferBank(t.source_file || "", [], [t.description || ""]);
+        if (inferred && inferred !== "Unknown Bank") {
+          bank = inferred;
+        }
+      }
+      return { ...t, utr, bank };
     });
     return NextResponse.json({ transactions: cleanedTransactions });
   } catch (err: any) {

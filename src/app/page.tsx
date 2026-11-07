@@ -11,6 +11,7 @@ import { parseDateToTime } from "@/lib/formatters/date";
 import { getLocalGeminiUsage } from "@/lib/ai/usage-tracker";
 import { StorageStats } from "@/lib/supabase/storage-stats";
 import { extractIdentifier, isIFSCCode } from "@/lib/parsers/utr-extractor";
+import { inferBank } from "@/lib/parsers/bank-detector";
 
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
@@ -69,11 +70,19 @@ export default function Home() {
         const data = await res.json();
         if (data.transactions && data.transactions.length > 0) {
           const cleaned = data.transactions.map((t: Transaction) => {
-            if (t.utr && isIFSCCode(t.utr)) {
+            let utr = t.utr;
+            if (utr && isIFSCCode(utr)) {
               const fixed = extractIdentifier(t.description, "");
-              return { ...t, utr: isIFSCCode(fixed) ? "" : fixed };
+              utr = isIFSCCode(fixed) ? "" : fixed;
             }
-            return t;
+            let bank = t.bank;
+            if (!bank || bank === "Unknown Bank" || bank === "Other Bank") {
+              const inferred = inferBank(t.source_file || "", [], [t.description || ""]);
+              if (inferred && inferred !== "Unknown Bank") {
+                bank = inferred;
+              }
+            }
+            return { ...t, utr, bank };
           });
           loadedTransactions = cleaned;
           setTransactions(cleaned);
