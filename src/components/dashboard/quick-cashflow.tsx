@@ -11,6 +11,7 @@ interface QuickCashflowProps {
   netProfit: number;
   excludedContraTotal: number;
   excludedFDTotal: number;
+  excludedInsuranceTotal?: number;
   periodLabel?: string;
   transactionCount?: number;
 }
@@ -21,6 +22,7 @@ export function QuickCashflow({
   netProfit,
   excludedContraTotal,
   excludedFDTotal,
+  excludedInsuranceTotal = 0,
   periodLabel,
   transactionCount,
 }: QuickCashflowProps) {
@@ -54,6 +56,11 @@ export function QuickCashflow({
         {excludedContraTotal > 0 && (
           <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
             <Info className="h-3 w-3 shrink-0" /> Excluded {formatINR(excludedContraTotal)} contra
+          </p>
+        )}
+        {excludedInsuranceTotal > 0 && (
+          <p className="text-[11px] text-amber-500/80 mt-1 flex items-center gap-1">
+            <Info className="h-3 w-3 shrink-0" /> Excluded {formatINR(excludedInsuranceTotal)} insurance claims
           </p>
         )}
       </Card>

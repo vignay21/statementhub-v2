@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ArrowDownLeft, ArrowUpRight, TrendingUp, TrendingDown, Percent, Landmark, RefreshCw } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, TrendingUp, TrendingDown, Percent, Landmark, RefreshCw, ShieldCheck } from "lucide-react";
 import { formatINR } from "@/lib/formatters/currency";
 import { Card } from "../ui/card";
 
@@ -12,6 +12,7 @@ interface CashflowKPIProps {
   profitMargin: number;
   totalFD: number;
   totalContra: number;
+  totalInsurance?: number;
   periodLabel?: string;
   transactionCount?: number;
 }
@@ -23,6 +24,7 @@ export function CashflowKPICards({
   profitMargin,
   totalFD,
   totalContra,
+  totalInsurance = 0,
   periodLabel,
   transactionCount,
 }: CashflowKPIProps) {
@@ -127,22 +129,22 @@ export function CashflowKPICards({
         </Card>
       </div>
 
-      {/* Row 2: Capital Separation (Fixed Deposits & Contra) */}
-      {(totalFD > 0 || totalContra > 0) && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+      {/* Row 2: Capital Separation (Fixed Deposits, Contra & Insurance Claims) */}
+      {(totalFD > 0 || totalContra > 0 || totalInsurance > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
           {totalFD > 0 && (
             <Card className="p-3.5 bg-slate-900/50 border-slate-800 flex items-center justify-between">
               <div>
                 <span className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
                   <Landmark className="h-3.5 w-3.5 text-indigo-400" />
-                  <span>Fixed Deposits & Capital Investments</span>
+                  <span>Fixed Deposits (Net Investments)</span>
                 </span>
                 <div className="mt-1 text-lg font-bold font-mono text-indigo-300">
                   {formatINR(totalFD)}
                 </div>
               </div>
               <span className="text-[11px] px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                Asset (Not Expense)
+                Asset (Excluded)
               </span>
             </Card>
           )}
@@ -159,7 +161,24 @@ export function CashflowKPICards({
                 </div>
               </div>
               <span className="text-[11px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                Excluded from Turnover
+                Turnover Excluded
+              </span>
+            </Card>
+          )}
+
+          {totalInsurance > 0 && (
+            <Card className="p-3.5 bg-slate-900/50 border-slate-800 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Personal Insurance Claims (LIC/ICICI)</span>
+                </span>
+                <div className="mt-1 text-lg font-bold font-mono text-emerald-300">
+                  {formatINR(totalInsurance)}
+                </div>
+              </div>
+              <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                Non-Operating
               </span>
             </Card>
           )}

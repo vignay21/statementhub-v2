@@ -23,6 +23,8 @@ interface FiltersBarProps {
   onExcludeContraChange: (val: boolean) => void;
   excludeFD: boolean;
   onExcludeFDChange: (val: boolean) => void;
+  excludeInsurance?: boolean;
+  onExcludeInsuranceChange?: (val: boolean) => void;
   availableMonths?: MonthOption[];
   selectedMonth?: string;
   onSelectedMonthChange?: (m: string) => void;
@@ -44,6 +46,8 @@ export function FiltersBar({
   onExcludeContraChange,
   excludeFD,
   onExcludeFDChange,
+  excludeInsurance = true,
+  onExcludeInsuranceChange,
   availableMonths = [],
   selectedMonth,
   onSelectedMonthChange,
@@ -165,6 +169,18 @@ export function FiltersBar({
           />
           <span className="text-slate-300">Exclude Fixed Deposits (Investments)</span>
         </label>
+
+        {onExcludeInsuranceChange && (
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={excludeInsurance}
+              onChange={(e) => onExcludeInsuranceChange(e.target.checked)}
+              className="rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-0 cursor-pointer"
+            />
+            <span className="text-slate-300">Exclude Insurance Claims</span>
+          </label>
+        )}
       </div>
     </div>
   );

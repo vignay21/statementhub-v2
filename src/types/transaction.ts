@@ -15,6 +15,7 @@ export interface Transaction {
   // Computed client-side flags:
   is_self_transfer?: boolean;
   is_fd_investment?: boolean;
+  is_insurance_claim?: boolean;
   is_duplicate_utr?: boolean;
 }
 

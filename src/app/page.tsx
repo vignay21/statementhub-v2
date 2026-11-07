@@ -7,6 +7,7 @@ import { ImportedStatement } from "@/types/statement";
 import { SearchMode, PeriodFilter, SortOrder } from "@/types/search";
 import { detectContraTransfers } from "@/lib/business/contra-detector";
 import { detectFixedDeposits } from "@/lib/business/fd-detector";
+import { detectInsuranceClaims } from "@/lib/business/insurance-detector";
 import { parseDateToTime } from "@/lib/formatters/date";
 import { getLocalGeminiUsage } from "@/lib/ai/usage-tracker";
 import { StorageStats } from "@/lib/supabase/storage-stats";
@@ -58,6 +59,7 @@ export default function Home() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("date_desc");
   const [excludeContra, setExcludeContra] = useState(true);
   const [excludeFD, setExcludeFD] = useState(true);
+  const [excludeInsurance, setExcludeInsurance] = useState(true);
 
   // Initial data loading from API
   const loadData = async () => {
@@ -178,6 +180,7 @@ export default function Home() {
     if (transactions.length === 0) return [];
     const contraFlags = detectContraTransfers(transactions);
     const fdFlags = detectFixedDeposits(transactions);
+    const insuranceFlags = detectInsuranceClaims(transactions);
 
     // Compute duplicate UTRs (never include IFSC codes)
     const utrCounts: Record<string, number> = {};
@@ -204,6 +207,7 @@ export default function Home() {
         utr: cleanUtr,
         is_self_transfer: contraFlags[i],
         is_fd_investment: fdFlags[i],
+        is_insurance_claim: insuranceFlags[i],
         is_duplicate_utr: Boolean(u && !isIFSCCode(u) && utrCounts[u] > 1),
       };
     });
@@ -507,6 +511,7 @@ export default function Home() {
     let outflow = 0;
     let contraTotal = 0;
     let fdTotal = 0;
+    let insuranceTotal = 0;
 
     periodFilteredTransactions.forEach((t) => {
       if (t.is_self_transfer) {
@@ -516,6 +521,10 @@ export default function Home() {
       if (t.is_fd_investment) {
         fdTotal += t.amount;
         if (excludeFD) return;
+      }
+      if (t.is_insurance_claim) {
+        insuranceTotal += t.amount;
+        if (excludeInsurance) return;
       }
 
       if (t.type === "Credit") inflow += t.amount;
@@ -532,9 +541,10 @@ export default function Home() {
       profitMargin,
       contraTotal,
       fdTotal,
+      insuranceTotal,
       transactionCount: periodFilteredTransactions.length,
     };
-  }, [periodFilteredTransactions, excludeContra, excludeFD]);
+  }, [periodFilteredTransactions, excludeContra, excludeFD, excludeInsurance]);
 
   // Detailed Filter & Sort for Transactions Table
   const filteredTransactions = useMemo(() => {
@@ -638,7 +648,9 @@ export default function Home() {
       if (t.is_fd_investment) item.fd += t.amount;
 
       const skipThisForProfit =
-        (excludeContra && t.is_self_transfer) || (excludeFD && t.is_fd_investment);
+        (excludeContra && t.is_self_transfer) ||
+        (excludeFD && t.is_fd_investment) ||
+        (excludeInsurance && t.is_insurance_claim);
 
       if (!skipThisForProfit) {
         if (t.type === "Credit") item.inflow += t.amount;
@@ -657,7 +669,7 @@ export default function Home() {
       const [mB, yB] = b.month.split("-").map(Number);
       return yA !== yB ? yA - yB : mA - mB;
     });
-  }, [periodFilteredTransactions, excludeContra, excludeFD]);
+  }, [periodFilteredTransactions, excludeContra, excludeFD, excludeInsurance]);
 
   // Active period display label
   const getPeriodLabel = () => {
@@ -810,6 +822,8 @@ export default function Home() {
               onExcludeContraChange={setExcludeContra}
               excludeFD={excludeFD}
               onExcludeFDChange={setExcludeFD}
+              excludeInsurance={excludeInsurance}
+              onExcludeInsuranceChange={setExcludeInsurance}
               activePeriodLabel={getPeriodLabel()}
               matchingCount={quickFinancials.transactionCount}
             />
@@ -821,6 +835,7 @@ export default function Home() {
               netProfit={quickFinancials.netProfit}
               excludedContraTotal={quickFinancials.contraTotal}
               excludedFDTotal={quickFinancials.fdTotal}
+              excludedInsuranceTotal={quickFinancials.insuranceTotal}
               periodLabel={getPeriodLabel()}
               transactionCount={quickFinancials.transactionCount}
             />
@@ -877,6 +892,8 @@ export default function Home() {
               onExcludeContraChange={setExcludeContra}
               excludeFD={excludeFD}
               onExcludeFDChange={setExcludeFD}
+              excludeInsurance={excludeInsurance}
+              onExcludeInsuranceChange={setExcludeInsurance}
               hideSort={true}
               activePeriodLabel={getPeriodLabel()}
               matchingCount={quickFinancials.transactionCount}
@@ -890,6 +907,7 @@ export default function Home() {
               profitMargin={quickFinancials.profitMargin}
               totalFD={quickFinancials.fdTotal}
               totalContra={quickFinancials.contraTotal}
+              totalInsurance={quickFinancials.insuranceTotal}
               periodLabel={getPeriodLabel()}
               transactionCount={quickFinancials.transactionCount}
             />

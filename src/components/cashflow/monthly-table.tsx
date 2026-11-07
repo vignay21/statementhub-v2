@@ -35,7 +35,7 @@ export function MonthlyTable({ data, allTransactions }: MonthlyTableProps) {
     ];
 
     allTransactions.forEach((t) => {
-      if (t.is_self_transfer || t.is_fd_investment) return;
+      if (t.is_self_transfer || t.is_fd_investment || t.is_insurance_claim) return;
       const parts = (t.date || "").split("-");
       if (parts.length === 3) {
         const mIdx = parseInt(parts[1], 10) - 1;
@@ -64,6 +64,11 @@ export function MonthlyTable({ data, allTransactions }: MonthlyTableProps) {
 
   const contraTxns = useMemo(
     () => allTransactions.filter((t) => t.is_self_transfer),
+    [allTransactions]
+  );
+
+  const insuranceTxns = useMemo(
+    () => allTransactions.filter((t) => t.is_insurance_claim),
     [allTransactions]
   );
 
@@ -128,6 +133,21 @@ export function MonthlyTable({ data, allTransactions }: MonthlyTableProps) {
       contraExportRows.length > 0 ? contraExportRows : [{ Notice: "No Internal Self Transfers" }]
     );
     XLSX.utils.book_append_sheet(workbook, sheet3, "Internal Self Transfers");
+
+    // Sheet 5: Personal Insurance Claims & Payouts
+    const insuranceExportRows = insuranceTxns.map((t) => ({
+      Date: t.date,
+      Bank: t.bank,
+      Type: t.type,
+      Amount: t.amount,
+      UTR: t.utr,
+      Description: t.description,
+      "Party Name": t.party_name,
+    }));
+    const sheet4 = XLSX.utils.json_to_sheet(
+      insuranceExportRows.length > 0 ? insuranceExportRows : [{ Notice: "No Insurance Claims" }]
+    );
+    XLSX.utils.book_append_sheet(workbook, sheet4, "Insurance Claims & Payouts");
 
     XLSX.writeFile(workbook, "monthly-profit-report.xlsx");
   };

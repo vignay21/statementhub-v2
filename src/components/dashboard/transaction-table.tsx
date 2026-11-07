@@ -149,6 +149,7 @@ export function TransactionTable({
       "Duplicate UTR": t.is_duplicate_utr ? "Yes" : "No",
       "Self Transfer": t.is_self_transfer ? "Yes" : "No",
       "Fixed Deposit": t.is_fd_investment ? "Yes" : "No",
+      "Insurance Claim": t.is_insurance_claim ? "Yes" : "No",
       "Party Match Key": t.party_match_key,
       "Source File": t.source_file,
     }));
@@ -395,7 +396,12 @@ export function TransactionTable({
                         )}
                         {t.is_fd_investment && (
                           <Badge variant="default" className="text-[10px] py-0 px-1.5">
-                            FD/Invest
+                            {t.type === "Credit" ? "FD Return" : "FD/Invest"}
+                          </Badge>
+                        )}
+                        {t.is_insurance_claim && (
+                          <Badge className="text-[10px] py-0 px-1.5 bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                            Insurance
                           </Badge>
                         )}
                       </td>

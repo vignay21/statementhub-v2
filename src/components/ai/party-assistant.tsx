@@ -57,7 +57,7 @@ export function AIPartyAssistant({
   const candidates = useMemo(() => {
     return unassignedTransactions.filter((t) => {
       if (!t.party_name) {
-        if (skipContraFD && (t.is_self_transfer || t.is_fd_investment)) return false;
+        if (skipContraFD && (t.is_self_transfer || t.is_fd_investment || t.is_insurance_claim)) return false;
         return true;
       }
       return false;
