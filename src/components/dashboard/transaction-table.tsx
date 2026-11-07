@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import * as XLSX from "xlsx";
 import { Download, Copy, Check, Edit2, ArrowDownLeft, ArrowUpRight, ShieldCheck, Landmark, Sparkles } from "lucide-react";
 import { Transaction } from "@/types/transaction";
@@ -27,6 +28,62 @@ export function TransactionTable({
   const [copiedUtr, setCopiedUtr] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const pageSize = 50;
+
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [dropdownCoords, setDropdownCoords] = useState<{
+    top?: number;
+    bottom?: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
+
+  const updateDropdownPosition = () => {
+    if (!inputRef.current) return;
+    const rect = inputRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const preferredHeight = 220;
+
+    // Flip upwards if insufficient vertical room below (less than 180px) and more room above
+    if (spaceBelow < 180 && spaceAbove > spaceBelow) {
+      setDropdownCoords({
+        bottom: window.innerHeight - rect.top + 4,
+        left: Math.max(8, rect.left),
+        width: Math.max(rect.width + 60, 260),
+        maxHeight: Math.min(preferredHeight, Math.max(120, spaceAbove - 24)),
+      });
+    } else {
+      setDropdownCoords({
+        top: rect.bottom + 4,
+        left: Math.max(8, rect.left),
+        width: Math.max(rect.width + 60, 260),
+        maxHeight: Math.min(preferredHeight, Math.max(120, spaceBelow - 24)),
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (editingFingerprint && showSuggestions) {
+      const timer = setTimeout(updateDropdownPosition, 20);
+      window.addEventListener("scroll", updateDropdownPosition, true);
+      window.addEventListener("resize", updateDropdownPosition);
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener("scroll", updateDropdownPosition, true);
+        window.removeEventListener("resize", updateDropdownPosition);
+      };
+    }
+  }, [editingFingerprint, showSuggestions, partyInput]);
+
+  useEffect(() => {
+    if (suggestIndex >= 0) {
+      const el = document.getElementById(`party-suggestion-${suggestIndex}`);
+      if (el) {
+        el.scrollIntoView({ block: "nearest" });
+      }
+    }
+  }, [suggestIndex]);
 
   // Suggest ONLY from stored authorized party names directory
   const allSuggestions = useMemo(() => {
@@ -64,6 +121,7 @@ export function TransactionTable({
     setPartyInput(t.party_name || "");
     setShowSuggestions(true);
     setSuggestIndex(-1);
+    setTimeout(updateDropdownPosition, 30);
   };
 
   const saveEditing = async (t: Transaction, overrideValue?: string) => {
@@ -194,81 +252,58 @@ export function TransactionTable({
                       {/* Party Name (Inline editable with auto-suggestions from stored directory) */}
                       <td className="py-2 px-3 whitespace-nowrap min-w-[200px] max-w-[280px]">
                         {isEditing ? (
-                          <div className="relative w-full space-y-1">
-                            <div className="flex items-center gap-1.5">
-                              <input
-                                type="text"
-                                value={partyInput}
-                                onChange={(e) => {
-                                  setPartyInput(e.target.value);
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              ref={inputRef}
+                              type="text"
+                              value={partyInput}
+                              onChange={(e) => {
+                                setPartyInput(e.target.value);
+                                setShowSuggestions(true);
+                                setSuggestIndex(-1);
+                                updateDropdownPosition();
+                              }}
+                              onFocus={() => {
+                                setShowSuggestions(true);
+                                updateDropdownPosition();
+                              }}
+                              onBlur={() => {
+                                // Small delay allows click on suggestion item to register before hiding
+                                setTimeout(() => setShowSuggestions(false), 200);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "ArrowDown") {
+                                  e.preventDefault();
                                   setShowSuggestions(true);
-                                  setSuggestIndex(-1);
-                                }}
-                                onFocus={() => setShowSuggestions(true)}
-                                onBlur={() => {
-                                  // Small delay allows click on suggestion item to register before hiding
-                                  setTimeout(() => setShowSuggestions(false), 180);
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === "ArrowDown") {
-                                    e.preventDefault();
-                                    setShowSuggestions(true);
-                                    setSuggestIndex((prev) =>
-                                      Math.min(prev + 1, activeSuggestions.length - 1)
-                                    );
-                                  } else if (e.key === "ArrowUp") {
-                                    e.preventDefault();
-                                    setSuggestIndex((prev) => Math.max(prev - 1, -1));
-                                  } else if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    if (suggestIndex >= 0 && activeSuggestions[suggestIndex]) {
-                                      setPartyInput(activeSuggestions[suggestIndex]);
-                                      saveEditing(t, activeSuggestions[suggestIndex]);
-                                    } else {
-                                      saveEditing(t);
-                                    }
-                                  } else if (e.key === "Escape") {
-                                    setEditingFingerprint(null);
-                                    setShowSuggestions(false);
+                                  setSuggestIndex((prev) =>
+                                    Math.min(prev + 1, activeSuggestions.length - 1)
+                                  );
+                                } else if (e.key === "ArrowUp") {
+                                  e.preventDefault();
+                                  setSuggestIndex((prev) => Math.max(prev - 1, -1));
+                                } else if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  if (suggestIndex >= 0 && activeSuggestions[suggestIndex]) {
+                                    setPartyInput(activeSuggestions[suggestIndex]);
+                                    saveEditing(t, activeSuggestions[suggestIndex]);
+                                  } else {
+                                    saveEditing(t);
                                   }
-                                }}
-                                autoFocus
-                                className="px-2 py-1 rounded bg-slate-900 border border-indigo-500 text-xs text-white focus:outline-none w-full uppercase"
-                                placeholder="Type or pick party name..."
-                              />
-                              <button
-                                onClick={() => saveEditing(t)}
-                                className="px-2.5 py-1 rounded bg-indigo-600 text-white text-[11px] hover:bg-indigo-700 font-medium shrink-0"
-                              >
-                                Save
-                              </button>
-                            </div>
-
-                            {/* Floating suggestion dropdown */}
-                            {showSuggestions && activeSuggestions.length > 0 && (
-                              <div
-                                className="absolute z-50 left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto rounded-md border border-slate-700 bg-slate-900 shadow-2xl py-1"
-                                onMouseDown={(e) => e.preventDefault()}
-                              >
-                                {activeSuggestions.map((s, idx) => (
-                                  <button
-                                    key={s}
-                                    type="button"
-                                    onClick={() => {
-                                      setPartyInput(s);
-                                      saveEditing(t, s);
-                                    }}
-                                    className={`w-full text-left px-2.5 py-1.5 text-xs truncate transition-colors flex items-center justify-between ${
-                                      idx === suggestIndex
-                                        ? "bg-indigo-600 text-white"
-                                        : "text-slate-200 hover:bg-slate-800"
-                                    }`}
-                                  >
-                                    <span className="truncate">{s}</span>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
+                                } else if (e.key === "Escape") {
+                                  setEditingFingerprint(null);
+                                  setShowSuggestions(false);
+                                }
+                              }}
+                              autoFocus
+                              className="px-2 py-1 rounded bg-slate-900 border border-indigo-500 text-xs text-white focus:outline-none w-full uppercase"
+                              placeholder="Type or pick party name..."
+                            />
+                            <button
+                              onClick={() => saveEditing(t)}
+                              className="px-2.5 py-1 rounded bg-indigo-600 text-white text-[11px] hover:bg-indigo-700 font-medium shrink-0"
+                            >
+                              Save
+                            </button>
                           </div>
                         ) : (
                           <div
@@ -403,6 +438,57 @@ export function TransactionTable({
           </div>
         )}
       </div>
+
+      {/* Floating suggestions portal - rendered at body root to avoid table overflow clipping */}
+      {typeof document !== "undefined" &&
+        showSuggestions &&
+        activeSuggestions.length > 0 &&
+        dropdownCoords &&
+        editingFingerprint &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              top: dropdownCoords.top !== undefined ? `${dropdownCoords.top}px` : undefined,
+              bottom: dropdownCoords.bottom !== undefined ? `${dropdownCoords.bottom}px` : undefined,
+              left: `${dropdownCoords.left}px`,
+              width: `${dropdownCoords.width}px`,
+              maxHeight: `${dropdownCoords.maxHeight}px`,
+            }}
+            className="z-[99999] overflow-y-auto rounded-lg border border-indigo-500/80 bg-slate-900 shadow-2xl py-1 text-xs ring-1 ring-black/50"
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            <div className="px-2.5 py-1 text-[10px] uppercase font-semibold text-indigo-400 tracking-wider border-b border-slate-800 mb-0.5 flex justify-between items-center bg-slate-950/70">
+              <span>Suggested Parties ({activeSuggestions.length})</span>
+              <span className="text-[9px] text-slate-500 lowercase">↑↓ navigate • enter select</span>
+            </div>
+            {activeSuggestions.map((s, idx) => (
+              <button
+                key={s}
+                id={`party-suggestion-${idx}`}
+                type="button"
+                onClick={() => {
+                  setPartyInput(s);
+                  const activeTx = transactions.find((x) => x.fingerprint === editingFingerprint);
+                  if (activeTx) {
+                    saveEditing(activeTx, s);
+                  }
+                }}
+                className={`w-full text-left px-3 py-1.5 text-xs truncate transition-colors flex items-center justify-between ${
+                  idx === suggestIndex
+                    ? "bg-indigo-600 text-white font-medium"
+                    : "text-slate-200 hover:bg-slate-800"
+                }`}
+              >
+                <span className="truncate">{s}</span>
+                {idx === suggestIndex && (
+                  <span className="text-[10px] opacity-80 shrink-0 ml-2">↵</span>
+                )}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
