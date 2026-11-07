@@ -510,7 +510,8 @@ export default function Home() {
     let inflow = 0;
     let outflow = 0;
     let contraTotal = 0;
-    let fdTotal = 0;
+    let fdInvested = 0;
+    let fdRedeemed = 0;
     let insuranceTotal = 0;
 
     periodFilteredTransactions.forEach((t) => {
@@ -519,7 +520,8 @@ export default function Home() {
         if (excludeContra) return;
       }
       if (t.is_fd_investment) {
-        fdTotal += t.amount;
+        if (t.type === "Debit") fdInvested += t.amount;
+        if (t.type === "Credit") fdRedeemed += t.amount;
         if (excludeFD) return;
       }
       if (t.is_insurance_claim) {
@@ -540,7 +542,10 @@ export default function Home() {
       netProfit,
       profitMargin,
       contraTotal,
-      fdTotal,
+      fdTotal: fdInvested + fdRedeemed,
+      fdInvested,
+      fdRedeemed,
+      netFD: fdInvested - fdRedeemed,
       insuranceTotal,
       transactionCount: periodFilteredTransactions.length,
     };
@@ -835,6 +840,8 @@ export default function Home() {
               netProfit={quickFinancials.netProfit}
               excludedContraTotal={quickFinancials.contraTotal}
               excludedFDTotal={quickFinancials.fdTotal}
+              excludedFDInvestedTotal={quickFinancials.fdInvested}
+              excludedFDRedeemedTotal={quickFinancials.fdRedeemed}
               excludedInsuranceTotal={quickFinancials.insuranceTotal}
               periodLabel={getPeriodLabel()}
               transactionCount={quickFinancials.transactionCount}
@@ -905,7 +912,9 @@ export default function Home() {
               totalOutflow={quickFinancials.outflow}
               netProfit={quickFinancials.netProfit}
               profitMargin={quickFinancials.profitMargin}
-              totalFD={quickFinancials.fdTotal}
+              totalFD={quickFinancials.netFD}
+              totalFDInvested={quickFinancials.fdInvested}
+              totalFDRedeemed={quickFinancials.fdRedeemed}
               totalContra={quickFinancials.contraTotal}
               totalInsurance={quickFinancials.insuranceTotal}
               periodLabel={getPeriodLabel()}

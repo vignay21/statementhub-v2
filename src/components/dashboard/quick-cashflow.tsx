@@ -10,7 +10,9 @@ interface QuickCashflowProps {
   totalOutflow: number;
   netProfit: number;
   excludedContraTotal: number;
-  excludedFDTotal: number;
+  excludedFDTotal?: number;
+  excludedFDInvestedTotal?: number;
+  excludedFDRedeemedTotal?: number;
   excludedInsuranceTotal?: number;
   periodLabel?: string;
   transactionCount?: number;
@@ -21,7 +23,9 @@ export function QuickCashflow({
   totalOutflow,
   netProfit,
   excludedContraTotal,
-  excludedFDTotal,
+  excludedFDTotal = 0,
+  excludedFDInvestedTotal = 0,
+  excludedFDRedeemedTotal = 0,
   excludedInsuranceTotal = 0,
   periodLabel,
   transactionCount,
@@ -63,6 +67,11 @@ export function QuickCashflow({
             <Info className="h-3 w-3 shrink-0" /> Excluded {formatINR(excludedInsuranceTotal)} insurance claims
           </p>
         )}
+        {excludedFDRedeemedTotal > 0 && (
+          <p className="text-[11px] text-indigo-400/80 mt-1 flex items-center gap-1">
+            <Info className="h-3 w-3 shrink-0" /> Excluded {formatINR(excludedFDRedeemedTotal)} FD redemption
+          </p>
+        )}
       </Card>
 
       {/* 2. Business Outflows */}
@@ -76,9 +85,9 @@ export function QuickCashflow({
         <div className="mt-2 text-xl font-bold font-mono text-rose-400">
           {formatINR(totalOutflow)}
         </div>
-        {excludedFDTotal > 0 && (
+        {(excludedFDInvestedTotal > 0 || excludedFDTotal > 0) && (
           <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-            <Info className="h-3 w-3 shrink-0" /> Excluded {formatINR(excludedFDTotal)} investments
+            <Info className="h-3 w-3 shrink-0" /> Excluded {formatINR(excludedFDInvestedTotal > 0 ? excludedFDInvestedTotal : excludedFDTotal)} FD investments
           </p>
         )}
       </Card>

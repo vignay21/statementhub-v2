@@ -11,6 +11,8 @@ interface CashflowKPIProps {
   netProfit: number;
   profitMargin: number;
   totalFD: number;
+  totalFDInvested?: number;
+  totalFDRedeemed?: number;
   totalContra: number;
   totalInsurance?: number;
   periodLabel?: string;
@@ -23,6 +25,8 @@ export function CashflowKPICards({
   netProfit,
   profitMargin,
   totalFD,
+  totalFDInvested = 0,
+  totalFDRedeemed = 0,
   totalContra,
   totalInsurance = 0,
   periodLabel,
@@ -132,16 +136,21 @@ export function CashflowKPICards({
       {/* Row 2: Capital Separation (Fixed Deposits, Contra & Insurance Claims) */}
       {(totalFD > 0 || totalContra > 0 || totalInsurance > 0) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-          {totalFD > 0 && (
+          {(totalFDInvested > 0 || totalFD > 0) && (
             <Card className="p-3.5 bg-slate-900/50 border-slate-800 flex items-center justify-between">
               <div>
                 <span className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
                   <Landmark className="h-3.5 w-3.5 text-indigo-400" />
-                  <span>Fixed Deposits (Net Investments)</span>
+                  <span>Fixed Deposits (Net Active)</span>
                 </span>
                 <div className="mt-1 text-lg font-bold font-mono text-indigo-300">
-                  {formatINR(totalFD)}
+                  {formatINR(totalFDInvested > 0 ? (totalFDInvested - totalFDRedeemed) : totalFD)}
                 </div>
+                {totalFDInvested > 0 && totalFDRedeemed > 0 && (
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    {formatINR(totalFDInvested)} booked · {formatINR(totalFDRedeemed)} redeemed
+                  </p>
+                )}
               </div>
               <span className="text-[11px] px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                 Asset (Excluded)
