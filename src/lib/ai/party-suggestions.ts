@@ -44,6 +44,7 @@ export async function generateAIPartySuggestions(
   const candidateModels = preferredModel
     ? [preferredModel, ...availableModels.filter((m) => m !== preferredModel)]
     : availableModels;
+  const modelsToTry = candidateModels.slice(0, 5);
 
   const prompt = `
 You are an expert Indian banking assistant specializing in counterparty identification from bank statement narrations.
@@ -86,7 +87,7 @@ Return a JSON array of objects with the exact schema:
   let lastError: any = null;
 
   // 2. Multi-model fallback loop
-  for (const modelName of candidateModels) {
+  for (const modelName of modelsToTry) {
     try {
       console.log(`Trying Gemini model: ${modelName}...`);
       const model = client.getGenerativeModel({

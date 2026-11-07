@@ -83,9 +83,9 @@ export function AIPartyAssistant({
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok || data.error) {
-        throw new Error(data.error || "Failed to generate AI suggestions");
+        throw new Error(data.error || `Server responded with ${res.status}: ${res.statusText}`);
       }
 
       const returnedSuggestions: PartySuggestion[] = data.suggestions || [];
@@ -103,7 +103,12 @@ export function AIPartyAssistant({
       });
       setSelectedFingerprints(preSelected);
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to contact Gemini API");
+      console.error("AI suggest error:", err);
+      const msg =
+        err.message === "Failed to fetch"
+          ? "Network error or local server not responding. Please check your connection."
+          : err.message || "Failed to contact Gemini API";
+      setErrorMsg(msg);
     } finally {
       setIsLoading(false);
     }

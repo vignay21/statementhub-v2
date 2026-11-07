@@ -3,10 +3,12 @@
  */
 
 export const DEFAULT_FALLBACK_MODELS = [
-  "gemini-1.5-flash",
-  "gemini-2.0-flash",
-  "gemini-1.5-flash-8b",
-  "gemini-1.5-pro",
+  "gemini-flash-lite-latest",
+  "gemini-3.5-flash-lite",
+  "gemini-3.5-flash",
+  "gemini-3.6-flash",
+  "gemini-3.8-flash",
+  "gemini-flash-latest",
 ];
 
 export async function fetchLiveGeminiModels(apiKey?: string): Promise<string[]> {
@@ -27,16 +29,28 @@ export async function fetchLiveGeminiModels(apiKey?: string): Promise<string[]> 
             Array.isArray(m.supportedGenerationMethods) &&
             m.supportedGenerationMethods.includes("generateContent")
         )
-        .map((m: any) => m.name.replace(/^models\//, ""));
+        .map((m: any) => m.name.replace(/^models\//, ""))
+        .filter(
+          (name: string) =>
+            !name.includes("1.5") &&
+            !name.includes("2.0") &&
+            !name.includes("2.5") &&
+            !name.includes("tts") &&
+            !name.includes("image") &&
+            !name.includes("clip") &&
+            !name.includes("transcribe") &&
+            !name.includes("computer-use") &&
+            !name.includes("robotics")
+        );
 
       if (liveModels.length > 0) {
         // Preferred priority order of real Gemini models
         const preferredOrder = [
-          "gemini-1.5-flash",
-          "gemini-2.0-flash",
-          "gemini-1.5-flash-8b",
-          "gemini-1.5-pro",
-          "gemini-2.0-flash-lite",
+          "gemini-flash-lite-latest",
+          "gemini-3.5-flash-lite",
+          "gemini-3.5-flash",
+          "gemini-3.6-flash",
+          "gemini-3.8-flash",
           "gemini-flash-latest",
         ];
 
