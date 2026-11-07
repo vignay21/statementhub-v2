@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Sparkles, Check, CheckSquare, Square, AlertCircle, ArrowRight, Loader2, Cpu } from "lucide-react";
 import { Transaction } from "@/types/transaction";
 import { PartySuggestion } from "@/lib/ai/party-suggestions";
+import { formatINR } from "@/lib/formatters/currency";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Card } from "../ui/card";
@@ -38,6 +39,12 @@ export function AIPartyAssistant({
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [preferredModel, setPreferredModel] = useState<string>("auto");
   const [modelUsed, setModelUsed] = useState<string | null>(null);
+
+  const txnMap = useMemo(() => {
+    const map = new Map<string, Transaction>();
+    unassignedTransactions.forEach((t) => map.set(t.fingerprint, t));
+    return map;
+  }, [unassignedTransactions]);
 
   // Fetch available models from Gemini API
   useEffect(() => {
@@ -314,36 +321,67 @@ export function AIPartyAssistant({
                 </Button>
               </div>
 
-              <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden max-h-80 overflow-y-auto">
+              <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden max-h-96 overflow-y-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="sticky top-0 bg-slate-900 border-b border-slate-800 text-slate-400">
                     <tr>
-                      <th className="py-2 px-3 w-10 text-center">Approve</th>
-                      <th className="py-2 px-3">Confidence</th>
-                      <th className="py-2 px-3">Suggested Party Name</th>
-                      <th className="py-2 px-3">Reason / Narration</th>
+                      <th className="py-2.5 px-3 w-10 text-center">Approve</th>
+                      <th className="py-2.5 px-3 w-28">Date & Bank</th>
+                      <th className="py-2.5 px-3 w-28 text-right">Amount</th>
+                      <th className="py-2.5 px-3 min-w-[220px]">Original Statement Narration</th>
+                      <th className="py-2.5 px-3">Suggested Party Name</th>
+                      <th className="py-2.5 px-3 w-28">Confidence</th>
+                      <th className="py-2.5 px-3 min-w-[200px]">AI Reasoning</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
                     {suggestions.map((item) => {
                       const isSelected = selectedFingerprints.has(item.fingerprint);
+                      const txn = txnMap.get(item.fingerprint);
 
                       return (
                         <tr
                           key={item.fingerprint}
                           className={`hover:bg-slate-900/60 transition-colors ${
-                            isSelected ? "bg-indigo-950/20" : ""
+                            isSelected ? "bg-indigo-950/25" : ""
                           }`}
                         >
-                          <td className="py-2 px-3 text-center">
+                          <td className="py-2.5 px-3 text-center">
                             <input
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => toggleSelectOne(item.fingerprint)}
-                              className="rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-0"
+                              disabled={!item.suggested_party}
+                              className="rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                             />
                           </td>
-                          <td className="py-2 px-3">
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <div className="font-medium text-slate-200">{txn?.date || "—"}</div>
+                            <div className="text-[10px] text-slate-500">{txn?.bank || "—"}</div>
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap text-right">
+                            <div
+                              className={`font-mono font-semibold ${
+                                txn?.type === "Credit" ? "text-emerald-400" : "text-rose-400"
+                              }`}
+                            >
+                              {txn?.amount !== undefined ? formatINR(txn.amount) : "—"}
+                            </div>
+                            <span className="text-[10px] text-slate-500">{txn?.type}</span>
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-300 font-mono text-[11px] max-w-xs break-all">
+                            {txn?.description || "—"}
+                          </td>
+                          <td className="py-2.5 px-3 font-semibold text-slate-100">
+                            {item.suggested_party ? (
+                              <span className="text-emerald-400 font-medium px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                                {item.suggested_party}
+                              </span>
+                            ) : (
+                              <span className="text-slate-600 italic">No confident match</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3">
                             <Badge
                               variant={
                                 item.confidence === "High"
@@ -352,7 +390,7 @@ export function AIPartyAssistant({
                                   ? "warning"
                                   : "danger"
                               }
-                              className="text-[10px] py-0 px-1.5"
+                              className="text-[10px] py-0.5 px-2"
                             >
                               {item.confidence === "High"
                                 ? "🟢 High"
@@ -361,12 +399,7 @@ export function AIPartyAssistant({
                                 : "🔴 Low"}
                             </Badge>
                           </td>
-                          <td className="py-2 px-3 font-semibold text-slate-100">
-                            {item.suggested_party || (
-                              <span className="text-slate-600 italic">No confident match</span>
-                            )}
-                          </td>
-                          <td className="py-2 px-3 text-slate-400 truncate max-w-xs">
+                          <td className="py-2.5 px-3 text-slate-400 text-[11px]">
                             {item.reason}
                           </td>
                         </tr>
