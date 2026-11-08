@@ -32,3 +32,9 @@
   - `src/lib/business/utr-refiner.ts`: Strict IFSC-code cleaning from UTR fields.
   - `src/lib/business/deduplication.ts`: Fingerprint & signature deduplication engine.
 
+---
+
+## 3. Deployment & Live Environment
+- **Live Production URL:** https://statementhub-v2.vercel.app/
+- **Hosting Platform:** Vercel (Production)
+
