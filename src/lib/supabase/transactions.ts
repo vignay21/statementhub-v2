@@ -15,13 +15,13 @@ export interface SyncResult {
 
 /**
  * Fetch full transaction records with pagination.
- * P3 fix: Increased page size to 5000 to drastically minimize round-trip queries.
+ * Note: Supabase PostgREST caps at 1000 rows per request, so pageSize=1000 ensures full pagination across all records.
  */
 export async function fetchTransactionsFromDB(
   client: SupabaseClient<Database> | SupabaseClient,
   limit: number = 50000
 ): Promise<Transaction[]> {
-  const pageSize = 5000;
+  const pageSize = 1000;
   let allRows: any[] = [];
   let from = 0;
 
@@ -62,13 +62,13 @@ export async function fetchTransactionsFromDB(
 }
 
 /**
- * P1 fix: Lightweight query fetching only deduplication signatures instead of full 50k rows.
+ * Lightweight query fetching deduplication signatures across all records with 1000-row pagination.
  */
 export async function fetchDedupSignaturesFromDB(
   client: SupabaseClient<Database> | SupabaseClient,
   limit: number = 50000
 ): Promise<Transaction[]> {
-  const pageSize = 5000;
+  const pageSize = 1000;
   let allRows: any[] = [];
   let from = 0;
 
