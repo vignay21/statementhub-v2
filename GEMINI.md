@@ -16,6 +16,7 @@
 - **Performance & Responsiveness:** UI party edits must remain instantaneous (optimistic update with zero perceptible delay on Enter/Select).
 - **Environment & Build Safety:** On Windows, run all `npm` and `npx` commands through `cmd /c` to prevent PowerShell execution policy restrictions.
 - **Testing Before Pushing:** Always run unit tests (`cmd /c npm test`) and production build check (`cmd /c npm run build`) before committing and pushing code.
+- **No Background Local Servers:** The application is hosted live on Vercel. After building or testing the application locally, do NOT leave background dev or production servers running (e.g. `next start`); terminate them immediately.
 
 ---
 
