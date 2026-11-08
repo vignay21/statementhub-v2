@@ -29,6 +29,11 @@ export function TransactionTable({
   const [page, setPage] = useState(1);
   const pageSize = 50;
 
+  // B4 fix: Reset page to 1 whenever the transaction list changes
+  useEffect(() => {
+    setPage(1);
+  }, [transactions]);
+
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dropdownCoords, setDropdownCoords] = useState<{
     top?: number;

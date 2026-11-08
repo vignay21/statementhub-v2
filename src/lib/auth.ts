@@ -14,10 +14,25 @@ export function getValidAccessCodes(): string[] {
     .filter(Boolean);
 }
 
-export async function isAccessCodeValid(inputCode: string): Promise<boolean> {
+/**
+ * Validates the passcode synchronously against configured APP_ACCESS_CODEs.
+ */
+export function isAccessCodeValid(inputCode: string): boolean {
   const validCodes = getValidAccessCodes();
   if (validCodes.length === 0) return true; // Open access if no access code configured
   return validCodes.includes(inputCode.trim());
+}
+
+/**
+ * Constant-time string equality comparison to prevent timing attacks.
+ */
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
 }
 
 export async function isValidSessionToken(token: string | undefined): Promise<boolean> {
@@ -27,7 +42,7 @@ export async function isValidSessionToken(token: string | undefined): Promise<bo
 
   for (const code of validCodes) {
     const expectedToken = await hashAccessCode(code);
-    if (token === expectedToken) return true;
+    if (timingSafeEqualHex(token, expectedToken)) return true;
   }
   return false;
 }

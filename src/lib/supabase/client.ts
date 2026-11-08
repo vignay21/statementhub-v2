@@ -1,8 +1,9 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { Database } from "./types";
 
-let browserClient: SupabaseClient | null = null;
+let browserClient: SupabaseClient<Database> | null = null;
 
-export function getSupabaseBrowserClient(): SupabaseClient | null {
+export function getSupabaseBrowserClient(): SupabaseClient<Database> | null {
   if (browserClient) return browserClient;
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -12,11 +13,12 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
     return null;
   }
 
-  browserClient = createClient(url, anonKey);
+  // A5 fix: Wire Database type into createClient
+  browserClient = createClient<Database>(url, anonKey);
   return browserClient;
 }
 
-export function getSupabaseServerClient(): SupabaseClient | null {
+export function getSupabaseServerClient(): SupabaseClient<Database> | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
@@ -27,5 +29,6 @@ export function getSupabaseServerClient(): SupabaseClient | null {
     return null;
   }
 
-  return createClient(url, key);
+  // A5 fix: Wire Database type into createClient
+  return createClient<Database>(url, key);
 }

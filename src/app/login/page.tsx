@@ -9,7 +9,12 @@ import { Input } from "@/components/ui/input";
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTarget = searchParams.get("from") || "/";
+  const rawTarget = searchParams.get("from") || "/";
+  // S6 fix: Ensure redirect target is same-origin relative path and not protocol-relative
+  const redirectTarget =
+    rawTarget.startsWith("/") && !rawTarget.startsWith("//") && !rawTarget.includes(":")
+      ? rawTarget
+      : "/";
 
   const [code, setCode] = useState("");
   const [showCode, setShowCode] = useState(false);

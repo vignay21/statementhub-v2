@@ -48,10 +48,11 @@ export function deduplicateTransactions(
       }
     }
 
-    // Layer 3: Balance signature match
-    if (!isDupe && t.balance !== null && t.balance !== undefined) {
+    // Layer 3: Balance signature match (only as a fallback tiebreaker when UTR is absent)
+    if (!isDupe && (!t.utr || !t.utr.trim()) && t.balance !== null && t.balance !== undefined) {
       const balKey = `${t.bank}|${t.date}|${t.amount.toFixed(2)}|${t.type}|${Number(t.balance).toFixed(2)}`;
       if (existingBalKeys.has(balKey)) {
+        console.warn(`[Dedup] Matched transaction by balance signature fallback: ${balKey}`);
         isDupe = true;
       }
     }

@@ -10,12 +10,23 @@ import { Transaction } from "@/types/transaction";
 
 export async function POST(req: NextRequest) {
   try {
+    // S7 fix: Guard maximum request size before reading multipart body
+    const contentLength = req.headers.get("content-length");
+    const MAX_PDF_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
+    if (contentLength && parseInt(contentLength, 10) > MAX_PDF_SIZE_BYTES) {
+      return NextResponse.json({ error: "PDF file is too large (maximum 15 MB allowed)" }, { status: 413 });
+    }
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const customKey = (formData.get("apiKey") as string | null) || undefined;
 
     if (!file) {
       return NextResponse.json({ error: "No PDF file provided" }, { status: 400 });
+    }
+
+    if (file.size > MAX_PDF_SIZE_BYTES) {
+      return NextResponse.json({ error: "PDF file is too large (maximum 15 MB allowed)" }, { status: 413 });
     }
 
     const genAI = getGeminiClient(customKey);

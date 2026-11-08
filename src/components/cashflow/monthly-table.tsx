@@ -15,10 +15,11 @@ import {
 import { formatINR } from "@/lib/formatters/currency";
 import { MonthlyDataPoint } from "./monthly-chart";
 import { Button } from "../ui/button";
+import { Transaction } from "@/types/transaction";
 
 interface MonthlyTableProps {
   data: MonthlyDataPoint[];
-  allTransactions: any[];
+  allTransactions: Transaction[];
 }
 
 export function MonthlyTable({ data, allTransactions }: MonthlyTableProps) {
@@ -26,15 +27,22 @@ export function MonthlyTable({ data, allTransactions }: MonthlyTableProps) {
   const [showFDs, setShowFDs] = useState(false);
   const [showContra, setShowContra] = useState(false);
 
-  // Bank-wise Breakdown per Month
-  const bankBreakdown = useMemo(() => {
+  // P6 & Q4 fix: Single-pass iteration for bankBreakdown, fdTxns, contraTxns, and insuranceTxns
+  const { bankBreakdown, fdTxns, contraTxns, insuranceTxns } = useMemo(() => {
     const map = new Map<string, { month: string; bank: string; received: number; sent: number }>();
     const monthNames = [
       "January", "February", "March", "April", "May", "June",
       "July", "August", "September", "October", "November", "December"
     ];
+    const fds: Transaction[] = [];
+    const contras: Transaction[] = [];
+    const insurances: Transaction[] = [];
 
     allTransactions.forEach((t) => {
+      if (t.is_fd_investment) fds.push(t);
+      if (t.is_self_transfer) contras.push(t);
+      if (t.is_insurance_claim) insurances.push(t);
+
       if (t.is_self_transfer || t.is_fd_investment || t.is_insurance_claim) return;
       const parts = (t.date || "").split("-");
       if (parts.length === 3) {
@@ -52,25 +60,17 @@ export function MonthlyTable({ data, allTransactions }: MonthlyTableProps) {
       }
     });
 
-    return Array.from(map.values()).sort(
+    const sortedBreakdown = Array.from(map.values()).sort(
       (a, b) => b.month.localeCompare(a.month) || a.bank.localeCompare(b.bank)
     );
+
+    return {
+      bankBreakdown: sortedBreakdown,
+      fdTxns: fds,
+      contraTxns: contras,
+      insuranceTxns: insurances,
+    };
   }, [allTransactions]);
-
-  const fdTxns = useMemo(
-    () => allTransactions.filter((t) => t.is_fd_investment),
-    [allTransactions]
-  );
-
-  const contraTxns = useMemo(
-    () => allTransactions.filter((t) => t.is_self_transfer),
-    [allTransactions]
-  );
-
-  const insuranceTxns = useMemo(
-    () => allTransactions.filter((t) => t.is_insurance_claim),
-    [allTransactions]
-  );
 
   const exportMultiSheetExcel = () => {
     const workbook = XLSX.utils.book_new();

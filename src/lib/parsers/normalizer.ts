@@ -2,12 +2,13 @@ import { Transaction } from "@/types/transaction";
 import { ColumnMap } from "./column-mapper";
 import { normalizeDate } from "../formatters/date";
 import { parseAmount } from "./amount-parser";
-import { extractIdentifier, isIFSCCode } from "./utr-extractor";
+import { extractIdentifier } from "./utr-extractor";
+import { cleanUTR } from "../business/utr-refiner";
 import { extractPartyMatchKey } from "../business/party-match-key";
 import { computeFingerprint } from "../business/fingerprint";
 
 export async function normalizeStatementRows(
-  rows: any[][],
+  rows: unknown[][],
   columnMap: ColumnMap,
   bank: string,
   filename: string,
@@ -19,7 +20,7 @@ export async function normalizeStatementRows(
     const row = rows[i];
     if (!row || row.length === 0) continue;
 
-    const rawDate = columnMap.dateCol >= 0 ? row[columnMap.dateCol] : "";
+    const rawDate = columnMap.dateCol >= 0 ? (row[columnMap.dateCol] as any) : "";
     const date = normalizeDate(rawDate);
     if (!date) continue; // Skip non-transaction rows
 
@@ -29,9 +30,9 @@ export async function normalizeStatementRows(
 
     // Determine Debit / Credit & Amount
     const debitRes =
-      columnMap.debitCol >= 0 ? parseAmount(row[columnMap.debitCol]) : { amount: 0, raw: 0 };
+      columnMap.debitCol >= 0 ? parseAmount(row[columnMap.debitCol] as any) : { amount: 0, raw: 0 };
     const creditRes =
-      columnMap.creditCol >= 0 ? parseAmount(row[columnMap.creditCol]) : { amount: 0, raw: 0 };
+      columnMap.creditCol >= 0 ? parseAmount(row[columnMap.creditCol] as any) : { amount: 0, raw: 0 };
 
     let amount = 0;
     let type: "Credit" | "Debit" = "Debit";
@@ -55,28 +56,20 @@ export async function normalizeStatementRows(
 
     // Extract reference
     const rawRef = columnMap.refCol >= 0 ? String(row[columnMap.refCol] || "").trim() : "";
-    let utr = extractIdentifier(description, rawRef);
-    if (isIFSCCode(utr)) {
-      utr = "";
-    }
+    const rawExtracted = extractIdentifier(description, rawRef);
+    const utr = cleanUTR(description, rawExtracted);
 
     // Closing Balance
     let balance: number | null = null;
     if (columnMap.balanceCol >= 0 && row[columnMap.balanceCol] !== undefined && row[columnMap.balanceCol] !== "") {
-      const balRes = parseAmount(row[columnMap.balanceCol]);
-      balance = balRes.raw;
+      const bRes = parseAmount(row[columnMap.balanceCol] as any);
+      if (bRes.amount > 0 || String(row[columnMap.balanceCol]).includes("0")) {
+        balance = bRes.raw;
+      }
     }
 
-    const partyMatchKey = extractPartyMatchKey(description);
-    const fingerprint = await computeFingerprint(
-      bank,
-      date,
-      amount,
-      type,
-      utr,
-      description,
-      balance
-    );
+    const party_match_key = extractPartyMatchKey(description);
+    const fingerprint = await computeFingerprint(bank, date, amount, type, utr, description, balance);
 
     transactions.push({
       fingerprint,
@@ -88,7 +81,7 @@ export async function normalizeStatementRows(
       type,
       utr,
       balance,
-      party_match_key: partyMatchKey,
+      party_match_key,
       source_file: filename,
     });
   }

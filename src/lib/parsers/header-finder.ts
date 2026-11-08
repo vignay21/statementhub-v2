@@ -1,10 +1,11 @@
 import { HEADER_ALIASES } from "../constants";
+import { matchesHeaderAlias } from "./column-mapper";
 
 /**
  * Detect the table header row by matching cell text against alias sets.
  * Requires at least 3 matches (date + description + amount/reference).
  */
-export function findHeaderRow(rows: string[][]): {
+export function findHeaderRow(rows: unknown[][]): {
   headerIndex: number;
   headerRow: string[];
   skippedRows: number;
@@ -15,7 +16,7 @@ export function findHeaderRow(rows: string[][]): {
 
   for (let i = 0; i < Math.min(rows.length, 30); i++) {
     const row = rows[i] || [];
-    const normalizedCells = row.map((cell) => (cell || "").toString().trim().toLowerCase());
+    const normalizedCells = row.map((cell) => (cell !== null && cell !== undefined ? String(cell) : "").trim().toLowerCase());
 
     let score = 0;
     const matchedCategories = new Set<string>();
@@ -24,7 +25,7 @@ export function findHeaderRow(rows: string[][]): {
       if (!cell) continue;
 
       for (const [category, aliases] of Object.entries(HEADER_ALIASES)) {
-        if (aliases.some((alias) => cell === alias || cell.includes(alias))) {
+        if (aliases.some((alias) => matchesHeaderAlias(cell, alias))) {
           matchedCategories.add(category);
         }
       }
@@ -43,7 +44,7 @@ export function findHeaderRow(rows: string[][]): {
     if (hasDate && hasDesc && hasAmount && score > bestScore) {
       bestScore = score;
       bestIndex = i;
-      bestRow = row;
+      bestRow = row.map((c) => (c !== null && c !== undefined ? String(c) : ""));
     }
   }
 

@@ -11,7 +11,7 @@ import { detectInsuranceClaims } from "@/lib/business/insurance-detector";
 import { parseDateToTime } from "@/lib/formatters/date";
 import { getLocalGeminiUsage } from "@/lib/ai/usage-tracker";
 import { StorageStats } from "@/lib/supabase/storage-stats";
-import { extractIdentifier, isIFSCCode } from "@/lib/parsers/utr-extractor";
+import { cleanTransactionUTR, isIFSCCode } from "@/lib/business/utr-refiner";
 import { inferBank } from "@/lib/parsers/bank-detector";
 
 import { Header } from "@/components/layout/header";
@@ -62,29 +62,28 @@ export default function Home() {
   const [excludeInsurance, setExcludeInsurance] = useState(true);
 
   // Initial data loading from API
-  const loadData = async () => {
+  // E5 fix: Support AbortSignal to avoid setting state on unmounted component
+  const loadData = async (signal?: AbortSignal) => {
     setIsRefreshing(true);
     try {
       // 1. Fetch transactions
       let loadedTransactions: Transaction[] = [];
-      const res = await fetch("/api/transactions/search");
+      const res = await fetch("/api/transactions/search", { signal });
+      if (signal?.aborted) return;
+
       if (res.ok) {
         const data = await res.json();
         if (data.transactions && data.transactions.length > 0) {
           const cleaned = data.transactions.map((t: Transaction) => {
-            let utr = t.utr;
-            if (utr && isIFSCCode(utr)) {
-              const fixed = extractIdentifier(t.description, "");
-              utr = isIFSCCode(fixed) ? "" : fixed;
-            }
-            let bank = t.bank;
+            const withUtr = cleanTransactionUTR(t);
+            let bank = withUtr.bank;
             if (!bank || bank === "Unknown Bank" || bank === "Other Bank") {
               const inferred = inferBank(t.source_file || "", [], [t.description || ""]);
               if (inferred && inferred !== "Unknown Bank") {
                 bank = inferred;
               }
             }
-            return { ...t, utr, bank };
+            return { ...withUtr, bank };
           });
           loadedTransactions = cleaned;
           setTransactions(cleaned);
@@ -95,19 +94,27 @@ export default function Home() {
       // 2. Fetch stored parties from backend
       let partiesFromDB: string[] = [];
       try {
-        const partyRes = await fetch("/api/transactions/party");
+        const partyRes = await fetch("/api/transactions/party", { signal });
         if (partyRes.ok) {
           const partyData = await partyRes.json();
           if (Array.isArray(partyData.parties)) {
             partiesFromDB = partyData.parties;
           }
         }
-      } catch (e) {}
+      } catch (err: unknown) {
+        if ((err as any)?.name !== "AbortError") {
+          console.warn("Notice: Stored parties unavailable from DB:", err);
+        }
+      }
+
+      if (signal?.aborted) return;
 
       // 3. Purge old polluted localStorage key
       try {
         localStorage.removeItem("stored_parties_directory");
-      } catch (e) {}
+      } catch (err) {
+        console.warn("Notice: Failed to purge old localStorage key:", err);
+      }
 
       // 4. Local offline cache fallback (versioned key stored_parties_v2)
       let localParties: string[] = [];
@@ -119,7 +126,9 @@ export default function Home() {
             localParties = parsed;
           }
         }
-      } catch (e) {}
+      } catch (err) {
+        console.warn("Notice: Failed to read local stored parties:", err);
+      }
 
       // 5. Also collect distinct explicitly assigned party names on transactions
       const txParties = loadedTransactions
@@ -149,66 +158,69 @@ export default function Home() {
         )
         .sort((a, b) => a.localeCompare(b));
 
+      if (signal?.aborted) return;
+
       setStoredParties(combinedParties);
       try {
         localStorage.setItem("stored_parties_v2", JSON.stringify(combinedParties));
-      } catch (e) {}
+      } catch (err) {
+        console.warn("Notice: Failed to cache stored parties:", err);
+      }
 
-      // 5. Fetch storage stats
-      const statsRes = await fetch("/api/storage/stats");
-      if (statsRes.ok) {
+      // 6. Fetch storage stats
+      const statsRes = await fetch("/api/storage/stats", { signal });
+      if (statsRes.ok && !signal?.aborted) {
         const stats = await statsRes.json();
         setStorageStats(stats);
       }
 
-      // 6. Gemini usage
+      // 7. Gemini usage
       const usage = getLocalGeminiUsage();
       setGeminiRequestsLeft(usage.requestsRemaining);
-    } catch (e) {
-      console.log("Running in offline/browser mode");
+    } catch (e: unknown) {
+      if ((e as any)?.name !== "AbortError") {
+        console.log("Running in offline/browser mode");
+      }
     } finally {
-      setIsRefreshing(false);
+      if (!signal?.aborted) {
+        setIsRefreshing(false);
+      }
     }
   };
 
   useEffect(() => {
-    loadData();
+    const controller = new AbortController();
+    loadData(controller.signal);
+    return () => {
+      controller.abort();
+    };
   }, []);
 
   // Compute tags for transactions (Contra & FD & Duplicate UTRs)
+  // P5 & B7 fix: Streamlined annotations and duplicate UTR counts without redundant re-parsing
   const annotatedTransactions = useMemo(() => {
     if (transactions.length === 0) return [];
     const contraFlags = detectContraTransfers(transactions);
     const fdFlags = detectFixedDeposits(transactions);
     const insuranceFlags = detectInsuranceClaims(transactions);
 
-    // Compute duplicate UTRs (never include IFSC codes)
+    // Compute duplicate UTRs
     const utrCounts: Record<string, number> = {};
-    transactions.forEach((t) => {
-      let u = t.utr ? t.utr.trim().toUpperCase() : "";
-      if (u && isIFSCCode(u)) {
-        const fixed = extractIdentifier(t.description, "");
-        u = isIFSCCode(fixed) ? "" : fixed.toUpperCase();
-      }
-      if (u && u.length > 3 && !isIFSCCode(u)) {
+    for (let i = 0; i < transactions.length; i++) {
+      const u = (transactions[i].utr || "").trim().toUpperCase();
+      if (u.length > 3) {
         utrCounts[u] = (utrCounts[u] || 0) + 1;
       }
-    });
+    }
 
     return transactions.map((t, i) => {
-      let cleanUtr = t.utr ? t.utr.trim() : "";
-      if (cleanUtr && isIFSCCode(cleanUtr)) {
-        const fixed = extractIdentifier(t.description, "");
-        cleanUtr = isIFSCCode(fixed) ? "" : fixed;
-      }
-      const u = cleanUtr.toUpperCase();
+      const u = (t.utr || "").trim().toUpperCase();
       return {
         ...t,
-        utr: cleanUtr,
         is_self_transfer: contraFlags[i],
         is_fd_investment: fdFlags[i],
         is_insurance_claim: insuranceFlags[i],
-        is_duplicate_utr: Boolean(u && !isIFSCCode(u) && utrCounts[u] > 1),
+        is_duplicate_utr: Boolean(u.length > 3 && utrCounts[u] > 1),
       };
     });
   }, [transactions]);
@@ -242,13 +254,7 @@ export default function Home() {
   const handleStatementsParsed = async (statements: ImportedStatement[]) => {
     const allNew: Transaction[] = [];
     statements.forEach((s) => {
-      const cleaned = s.transactions.map((t) => {
-        if (t.utr && isIFSCCode(t.utr)) {
-          const fixed = extractIdentifier(t.description, "");
-          return { ...t, utr: isIFSCCode(fixed) ? "" : fixed };
-        }
-        return t;
-      });
+      const cleaned = s.transactions.map((t) => cleanTransactionUTR(t));
       allNew.push(...cleaned);
     });
 
@@ -263,12 +269,14 @@ export default function Home() {
         const next = Array.from(new Set([...prev, ...newParties])).sort((a, b) => a.localeCompare(b));
         try {
           localStorage.setItem("stored_parties_v2", JSON.stringify(next));
-        } catch (e) {}
+        } catch (e) {
+          console.warn("Failed to update localStorage stored_parties_v2:", e);
+        }
         return next;
       });
     }
 
-    // Try cloud sync if connected
+    // Try cloud sync if connected (E2 fix: Provide clear feedback on sync error)
     try {
       const syncRes = await fetch("/api/transactions/sync", {
         method: "POST",
@@ -277,22 +285,32 @@ export default function Home() {
       });
 
       if (syncRes.ok) {
+        const syncData = await syncRes.json();
         setSupabaseConnected(true);
+        if (syncData.errors && syncData.errors.length > 0) {
+          console.warn("Some batches had sync errors:", syncData.errors);
+        }
         await loadData();
         return;
+      } else {
+        console.warn("Cloud sync returned non-OK status; retaining transactions in local session.");
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn("Cloud sync request failed; retaining transactions in local session:", e);
+    }
 
     // Fallback in-memory
     setTransactions((prev) => [...allNew, ...prev]);
   };
 
-  // Update party name
+  // Update party name (E1 fix: Roll back optimistic update if server request fails)
   const handleUpdatePartyName = async (
     fingerprint: string,
     matchKey: string,
     newParty: string
   ) => {
+    const previousTransactions = transactions;
+
     // Optimistic local update
     setTransactions((prev) =>
       prev.map((t) => (t.fingerprint === fingerprint ? { ...t, party_name: newParty } : t))
@@ -304,21 +322,31 @@ export default function Home() {
         const next = Array.from(new Set([...prev, clean])).sort((a, b) => a.localeCompare(b));
         try {
           localStorage.setItem("stored_parties_v2", JSON.stringify(next));
-        } catch (e) {}
+        } catch (e) {
+          console.warn("Failed to write to localStorage:", e);
+        }
         return next;
       });
     }
 
     try {
-      await fetch("/api/transactions/party", {
+      const res = await fetch("/api/transactions/party", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fingerprint, match_key: matchKey, party_name: newParty }),
       });
-    } catch (e) {}
+
+      if (!res.ok) {
+        throw new Error("Server rejected party name update");
+      }
+    } catch (e) {
+      console.error("Party update failed on server, rolling back:", e);
+      setTransactions(previousTransactions);
+      alert("Failed to save party name on the server. Change reverted.");
+    }
   };
 
-  // Bulk apply AI suggestions
+  // Bulk apply AI suggestions (P2 fix: Single HTTP POST call to /api/transactions/party/bulk)
   const handleApplyAISuggestions = async (
     approved: { fingerprint: string; matchKey: string; partyName: string }[]
   ) => {
@@ -342,24 +370,32 @@ export default function Home() {
         const next = Array.from(new Set([...prev, ...approvedNames])).sort((a, b) => a.localeCompare(b));
         try {
           localStorage.setItem("stored_parties_v2", JSON.stringify(next));
-        } catch (e) {}
+        } catch (e) {
+          console.warn("Failed to save approved parties to localStorage:", e);
+        }
         return next;
       });
     }
 
-    // Sync to backend
-    for (const item of approved) {
-      try {
-        await fetch("/api/transactions/party", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+    // Single bulk HTTP request
+    try {
+      const res = await fetch("/api/transactions/party/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          updates: approved.map((item) => ({
             fingerprint: item.fingerprint,
             match_key: item.matchKey,
             party_name: item.partyName,
-          }),
-        });
-      } catch (e) {}
+          })),
+        }),
+      });
+
+      if (!res.ok) {
+        console.warn("Bulk party update endpoint returned non-OK status");
+      }
+    } catch (e) {
+      console.warn("Bulk party update request failed:", e);
     }
   };
 
@@ -943,7 +979,9 @@ export default function Home() {
                 const next = Array.from(new Set([...prev, clean])).sort((a, b) => a.localeCompare(b));
                 try {
                   localStorage.setItem("stored_parties_v2", JSON.stringify(next));
-                } catch (e) {}
+                } catch (err) {
+                  console.warn("Failed to update localStorage with added party:", err);
+                }
                 return next;
               });
               try {
@@ -952,14 +990,18 @@ export default function Home() {
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ party_name: clean }),
                 });
-              } catch (e) {}
+              } catch (err) {
+                console.warn("Failed to persist party to backend:", err);
+              }
             }}
             onResetDirectory={async () => {
               try {
                 localStorage.removeItem("stored_parties_directory");
                 localStorage.setItem("stored_parties_v2", JSON.stringify(DEFAULT_STORED_PARTY_NAMES));
                 await fetch("/api/transactions/party", { method: "DELETE" });
-              } catch (e) {}
+              } catch (err) {
+                console.warn("Failed to reset directory on backend:", err);
+              }
               setStoredParties(DEFAULT_STORED_PARTY_NAMES);
             }}
           />

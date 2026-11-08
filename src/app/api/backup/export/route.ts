@@ -39,7 +39,6 @@ export async function GET() {
       },
       total_stored_party_names: partyNames.length,
       stored_party_names: partyNames,
-      stored_parties: partyNames,
       party_mappings: partyMappings,
       transactions: formattedTransactions,
     };

@@ -6,7 +6,7 @@ import { computeFingerprint } from "@/lib/business/fingerprint";
 import { normalizeDate } from "@/lib/formatters/date";
 import { parseAmount } from "@/lib/parsers/amount-parser";
 import { extractPartyMatchKey } from "@/lib/business/party-match-key";
-import { extractIdentifier, isIFSCCode } from "@/lib/parsers/utr-extractor";
+import { cleanUTR } from "@/lib/business/utr-refiner";
 import { Transaction } from "@/types/transaction";
 
 export async function POST(req: NextRequest) {
@@ -14,6 +14,13 @@ export async function POST(req: NextRequest) {
     const client = getSupabaseServerClient();
     if (!client) {
       return NextResponse.json({ error: "Supabase not configured" }, { status: 500 });
+    }
+
+    // S7 fix: Guard maximum request body size (25 MB limit)
+    const contentLength = req.headers.get("content-length");
+    const MAX_BACKUP_SIZE_BYTES = 25 * 1024 * 1024;
+    if (contentLength && parseInt(contentLength, 10) > MAX_BACKUP_SIZE_BYTES) {
+      return NextResponse.json({ error: "Backup file is too large (max 25 MB)" }, { status: 413 });
     }
 
     const backup = await req.json();
@@ -154,13 +161,10 @@ export async function POST(req: NextRequest) {
       const description = String(
         t.description || t.Description || t.narration || t.particulars || ""
       ).trim();
-      let utr = String(
+      const rawUtr = String(
         t.utr || t.UTR || t["UTR / Reference"] || t.ref || t.reference || t.ref_no || ""
       ).trim();
-      if (utr && isIFSCCode(utr)) {
-        const fixed = extractIdentifier(description, "");
-        utr = isIFSCCode(fixed) ? "" : fixed;
-      }
+      const utr = cleanUTR(description, rawUtr);
       const party_name = String(
         t["Assigned Business / Party Name"] ||
         t.party_name ||
@@ -182,12 +186,8 @@ export async function POST(req: NextRequest) {
         t["Source file"] || t["Source File"] || t.source_file || "backup_import.json"
       ).trim();
 
-      let fingerprint = String(
-        t.fingerprint || t["Transaction key"] || t["Transaction Key"] || ""
-      ).trim();
-      if (!fingerprint) {
-        fingerprint = await computeFingerprint(bank, date, amount, type, utr, description, balance);
-      }
+      // S5 fix: Always recompute fingerprint server-side from raw fields; never trust client-provided ones.
+      const fingerprint = await computeFingerprint(bank, date, amount, type, utr, description, balance);
 
       const is_self_transfer = Boolean(
         t.is_self_transfer ?? t["Is_Internal"] ?? t["Is Internal"] ?? false

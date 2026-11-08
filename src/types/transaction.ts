@@ -19,11 +19,6 @@ export interface Transaction {
   is_duplicate_utr?: boolean;
 }
 
-export interface StoredParty {
-  name: string;
-  count?: number;
-}
-
 export interface PartyMapping {
   match_key: string;
   party_name: string;

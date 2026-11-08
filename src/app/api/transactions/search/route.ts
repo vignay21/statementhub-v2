@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/client";
 import { fetchTransactionsFromDB } from "@/lib/supabase/transactions";
-import { extractIdentifier, isIFSCCode } from "@/lib/parsers/utr-extractor";
+import { cleanTransactionUTR } from "@/lib/business/utr-refiner";
 import { inferBank } from "@/lib/parsers/bank-detector";
 
 export async function GET(req: NextRequest) {
@@ -19,23 +19,20 @@ export async function GET(req: NextRequest) {
 
     const transactions = await fetchTransactionsFromDB(client, limit);
     const cleanedTransactions = transactions.map((t) => {
-      let utr = t.utr;
-      if (utr && isIFSCCode(utr)) {
-        const fixed = extractIdentifier(t.description, "");
-        utr = isIFSCCode(fixed) ? "" : fixed;
-      }
-      let bank = t.bank;
+      const withCleanUtr = cleanTransactionUTR(t);
+      let bank = withCleanUtr.bank;
       if (!bank || bank === "Unknown Bank" || bank === "Other Bank") {
         const inferred = inferBank(t.source_file || "", [], [t.description || ""]);
         if (inferred && inferred !== "Unknown Bank") {
           bank = inferred;
         }
       }
-      return { ...t, utr, bank };
+      return { ...withCleanUtr, bank };
     });
     return NextResponse.json({ transactions: cleanedTransactions });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("API /transactions/search error:", err);
-    return NextResponse.json({ error: err.message || "Failed to fetch transactions" }, { status: 500 });
+    const message = err instanceof Error ? err.message : "Failed to fetch transactions";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

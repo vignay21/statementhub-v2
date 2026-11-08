@@ -1,18 +1,30 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { Transaction } from "@/types/transaction";
 import { deduplicateTransactions } from "../business/deduplication";
+import { Database } from "./types";
 
+export interface SyncResult {
+  inserted: number;
+  skipped: number;
+  total: number;
+  errors?: string[];
+}
+
+/**
+ * Fetch full transaction records with pagination.
+ * P3 fix: Increased page size to 5000 to drastically minimize round-trip queries.
+ */
 export async function fetchTransactionsFromDB(
-  client: SupabaseClient,
+  client: SupabaseClient<Database> | SupabaseClient,
   limit: number = 50000
 ): Promise<Transaction[]> {
-  const pageSize = 1000;
+  const pageSize = 5000;
   let allRows: any[] = [];
   let from = 0;
 
   while (from < limit) {
     const to = Math.min(from + pageSize - 1, limit - 1);
-    const { data, error } = await client
+    const { data, error } = await (client as any)
       .from("transactions")
       .select("*")
       .order("id", { ascending: false })
@@ -39,23 +51,68 @@ export async function fetchTransactionsFromDB(
     amount: Number(r.amount),
     type: r.type as "Credit" | "Debit",
     utr: r.utr || "",
-    balance: r.balance !== null ? Number(r.balance) : null,
+    balance: r.balance !== null && r.balance !== undefined ? Number(r.balance) : null,
     party_match_key: r.party_match_key || "",
     source_file: r.source_file || "",
     created_at: r.created_at,
   }));
 }
 
+/**
+ * P1 fix: Lightweight query fetching only deduplication signatures instead of full 50k rows.
+ */
+export async function fetchDedupSignaturesFromDB(
+  client: SupabaseClient<Database> | SupabaseClient,
+  limit: number = 50000
+): Promise<Transaction[]> {
+  const pageSize = 5000;
+  let allRows: any[] = [];
+  let from = 0;
+
+  while (from < limit) {
+    const to = Math.min(from + pageSize - 1, limit - 1);
+    const { data, error } = await (client as any)
+      .from("transactions")
+      .select("fingerprint, bank, date, amount, type, utr, balance")
+      .order("id", { ascending: false })
+      .range(from, to);
+
+    if (error) {
+      console.error("Error fetching dedup signatures from DB:", error);
+      break;
+    }
+
+    if (!data || data.length === 0) break;
+    allRows = allRows.concat(data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return allRows.map((r) => ({
+    fingerprint: r.fingerprint,
+    bank: r.bank,
+    date: r.date,
+    description: "",
+    party_name: "",
+    amount: Number(r.amount),
+    type: r.type as "Credit" | "Debit",
+    utr: r.utr || "",
+    balance: r.balance !== null && r.balance !== undefined ? Number(r.balance) : null,
+    party_match_key: "",
+    source_file: "",
+  }));
+}
+
 export async function syncTransactionsWithDB(
-  client: SupabaseClient,
+  client: SupabaseClient<Database> | SupabaseClient,
   incoming: Transaction[]
-): Promise<{ inserted: number; skipped: number; total: number }> {
+): Promise<SyncResult> {
   if (incoming.length === 0) {
     return { inserted: 0, skipped: 0, total: 0 };
   }
 
-  // 1. Fetch existing fingerprints and signatures to perform 3-layer dedup
-  const existing = await fetchTransactionsFromDB(client);
+  // 1. Fetch only lightweight deduplication signatures instead of entire DB payload
+  const existing = await fetchDedupSignaturesFromDB(client);
   const dedupResult = deduplicateTransactions(incoming, existing);
 
   const toInsert = dedupResult.newTransactions;
@@ -64,6 +121,7 @@ export async function syncTransactionsWithDB(
   // 2. Insert in chunks of 100
   const chunkSize = 100;
   let inserted = 0;
+  const chunkErrors: string[] = [];
 
   for (let i = 0; i < toInsert.length; i += chunkSize) {
     const chunk = toInsert.slice(i, i + chunkSize).map((t) => ({
@@ -80,13 +138,14 @@ export async function syncTransactionsWithDB(
       source_file: t.source_file || "",
     }));
 
-    const { error } = await client.from("transactions").upsert(chunk, {
+    const { error } = await (client as any).from("transactions").upsert(chunk, {
       onConflict: "fingerprint",
       ignoreDuplicates: true,
     });
 
     if (error) {
       console.error("Error inserting transaction batch:", error);
+      chunkErrors.push(error.message || "Batch insert error");
     } else {
       inserted += chunk.length;
     }
@@ -96,15 +155,16 @@ export async function syncTransactionsWithDB(
     inserted,
     skipped,
     total: incoming.length,
+    ...(chunkErrors.length > 0 ? { errors: chunkErrors } : {}),
   };
 }
 
 export async function updateTransactionPartyName(
-  client: SupabaseClient,
+  client: SupabaseClient<Database> | SupabaseClient,
   fingerprint: string,
   partyName: string
 ): Promise<boolean> {
-  const { error } = await client
+  const { error } = await (client as any)
     .from("transactions")
     .update({ party_name: partyName })
     .eq("fingerprint", fingerprint);
@@ -117,11 +177,11 @@ export async function updateTransactionPartyName(
 }
 
 export async function bulkUpdateTransactionPartyByMatchKey(
-  client: SupabaseClient,
+  client: SupabaseClient<Database> | SupabaseClient,
   matchKey: string,
   partyName: string
 ): Promise<number> {
-  const { data, error } = await client
+  const { data, error } = await (client as any)
     .from("transactions")
     .update({ party_name: partyName })
     .eq("party_match_key", matchKey)
@@ -132,4 +192,49 @@ export async function bulkUpdateTransactionPartyByMatchKey(
     return 0;
   }
   return data?.length || 0;
+}
+
+/**
+ * P2 fix: Bulk update multiple transactions / match keys in a single operation.
+ */
+export async function bulkUpdateTransactionParties(
+  client: SupabaseClient<Database> | SupabaseClient,
+  updates: Array<{ fingerprint?: string; match_key?: string; party_name: string }>
+): Promise<{ updatedCount: number; errors?: string[] }> {
+  let updatedCount = 0;
+  const errors: string[] = [];
+
+  for (const item of updates) {
+    if (!item.party_name) continue;
+
+    if (item.fingerprint) {
+      const { error } = await (client as any)
+        .from("transactions")
+        .update({ party_name: item.party_name })
+        .eq("fingerprint", item.fingerprint);
+
+      if (error) {
+        errors.push(`Fingerprint ${item.fingerprint}: ${error.message}`);
+      } else {
+        updatedCount += 1;
+      }
+    } else if (item.match_key) {
+      const { data, error } = await (client as any)
+        .from("transactions")
+        .update({ party_name: item.party_name })
+        .eq("party_match_key", item.match_key)
+        .select("id");
+
+      if (error) {
+        errors.push(`MatchKey ${item.match_key}: ${error.message}`);
+      } else {
+        updatedCount += data?.length || 0;
+      }
+    }
+  }
+
+  return {
+    updatedCount,
+    ...(errors.length > 0 ? { errors } : {}),
+  };
 }

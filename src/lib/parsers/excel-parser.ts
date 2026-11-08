@@ -13,7 +13,7 @@ export async function parseExcelStatement(file: File): Promise<ImportedStatement
   const worksheet = workbook.Sheets[firstSheetName];
 
   // Convert worksheet to array of row arrays
-  const rawRows: any[][] = XLSX.utils.sheet_to_json(worksheet, {
+  const rawRows: unknown[][] = XLSX.utils.sheet_to_json(worksheet, {
     header: 1,
     defval: "",
     raw: false,

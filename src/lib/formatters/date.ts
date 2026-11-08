@@ -40,6 +40,20 @@ export function normalizeDate(raw: string | number | Date | null | undefined): s
     }
   }
 
+  // Common pattern: DD-Mon-YYYY or DD Mon YYYY (e.g. 25-Apr-2024 or 25 Apr 24)
+  const dMonYMatch = str.match(/^(\d{1,2})[-/ ]([A-Za-z]{3,9})[-/ ](\d{2,4})/);
+  if (dMonYMatch) {
+    const day = parseInt(dMonYMatch[1], 10);
+    const monthStr = dMonYMatch[2].toLowerCase().slice(0, 3);
+    let year = parseInt(dMonYMatch[3], 10);
+    if (year < 100) year += 2000;
+    const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    const mIdx = months.indexOf(monthStr);
+    if (mIdx !== -1 && day >= 1 && day <= 31) {
+      return `${String(day).padStart(2, "0")}-${String(mIdx + 1).padStart(2, "0")}-${year}`;
+    }
+  }
+
   // ISO pattern: YYYY-MM-DD
   const ymdMatch = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
   if (ymdMatch) {
@@ -51,16 +65,20 @@ export function normalizeDate(raw: string | number | Date | null | undefined): s
     }
   }
 
-  // Fallback to JS Date parser
-  const parsed = new Date(str);
-  if (!isNaN(parsed.getTime())) {
-    const d = String(parsed.getDate()).padStart(2, "0");
-    const m = String(parsed.getMonth() + 1).padStart(2, "0");
-    const y = parsed.getFullYear();
-    return `${d}-${m}-${y}`;
+  // Fallback to JS Date parser ONLY IF the string explicitly contains a 4-digit year
+  // (Prevents strings like "Apr 25" or "Opening Balance" from falsely producing 2001 dates)
+  if (/\b(19\d\d|20\d\d)\b/.test(str)) {
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+      const d = String(parsed.getDate()).padStart(2, "0");
+      const m = String(parsed.getMonth() + 1).padStart(2, "0");
+      const y = parsed.getFullYear();
+      return `${d}-${m}-${y}`;
+    }
   }
 
-  return str;
+  // B3 fix: Always return empty string when date parsing fails
+  return "";
 }
 
 export function parseDateToTime(raw: string | number | Date | null | undefined): number {
@@ -78,18 +96,24 @@ export function parseDateToTime(raw: string | number | Date | null | undefined):
     const month = parseInt(dmyMatch[2], 10) - 1;
     let year = parseInt(dmyMatch[3], 10);
     if (year < 100) year += 2000;
-    return new Date(year, month, day).getTime();
+    const d = new Date(year, month, day);
+    return isNaN(d.getTime()) ? 0 : d.getTime();
   }
 
-  // ISO format: YYYY-MM-DD
-  const ymdMatch = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
-  if (ymdMatch) {
-    const year = parseInt(ymdMatch[1], 10);
-    const month = parseInt(ymdMatch[2], 10) - 1;
-    const day = parseInt(ymdMatch[3], 10);
-    return new Date(year, month, day).getTime();
+  const dMonYMatch = str.match(/^(\d{1,2})[-/ ]([A-Za-z]{3,9})[-/ ](\d{2,4})/);
+  if (dMonYMatch) {
+    const day = parseInt(dMonYMatch[1], 10);
+    const monthStr = dMonYMatch[2].toLowerCase().slice(0, 3);
+    let year = parseInt(dMonYMatch[3], 10);
+    if (year < 100) year += 2000;
+    const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    const mIdx = months.indexOf(monthStr);
+    if (mIdx !== -1) {
+      const d = new Date(year, mIdx, day);
+      return isNaN(d.getTime()) ? 0 : d.getTime();
+    }
   }
 
-  const fallback = new Date(str).getTime();
-  return isNaN(fallback) ? 0 : fallback;
+  const parsed = new Date(str);
+  return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 }

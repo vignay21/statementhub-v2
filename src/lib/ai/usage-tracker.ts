@@ -7,7 +7,7 @@ export interface GeminiUsage {
 }
 
 const STORAGE_KEY = "statementhub_gemini_usage";
-const DEFAULT_DAILY_LIMIT = 1500;
+export const DEFAULT_DAILY_GEMINI_LIMIT = 1500;
 
 export function getLocalGeminiUsage(): GeminiUsage {
   const today = new Date().toISOString().split("T")[0];
@@ -16,9 +16,9 @@ export function getLocalGeminiUsage(): GeminiUsage {
     return {
       date: today,
       requestsUsed: 0,
-      requestsRemaining: DEFAULT_DAILY_LIMIT,
+      requestsRemaining: DEFAULT_DAILY_GEMINI_LIMIT,
       tokensConsumed: 0,
-      maxDailyRequests: DEFAULT_DAILY_LIMIT,
+      maxDailyRequests: DEFAULT_DAILY_GEMINI_LIMIT,
     };
   }
 
@@ -30,14 +30,16 @@ export function getLocalGeminiUsage(): GeminiUsage {
         return data;
       }
     }
-  } catch (e) {}
+  } catch (err) {
+    console.warn("Failed to read Gemini usage from localStorage:", err);
+  }
 
   const fresh: GeminiUsage = {
     date: today,
     requestsUsed: 0,
-    requestsRemaining: DEFAULT_DAILY_LIMIT,
+    requestsRemaining: DEFAULT_DAILY_GEMINI_LIMIT,
     tokensConsumed: 0,
-    maxDailyRequests: DEFAULT_DAILY_LIMIT,
+    maxDailyRequests: DEFAULT_DAILY_GEMINI_LIMIT,
   };
   saveLocalGeminiUsage(fresh);
   return fresh;
@@ -47,7 +49,9 @@ export function saveLocalGeminiUsage(usage: GeminiUsage) {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(usage));
-  } catch (e) {}
+  } catch (err) {
+    console.warn("Failed to save Gemini usage to localStorage:", err);
+  }
 }
 
 export function recordGeminiCall(tokens: number = 0): GeminiUsage {
@@ -64,9 +68,9 @@ export function resetGeminiUsage(): GeminiUsage {
   const fresh: GeminiUsage = {
     date: today,
     requestsUsed: 0,
-    requestsRemaining: DEFAULT_DAILY_LIMIT,
+    requestsRemaining: DEFAULT_DAILY_GEMINI_LIMIT,
     tokensConsumed: 0,
-    maxDailyRequests: DEFAULT_DAILY_LIMIT,
+    maxDailyRequests: DEFAULT_DAILY_GEMINI_LIMIT,
   };
   saveLocalGeminiUsage(fresh);
   return fresh;

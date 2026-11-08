@@ -27,8 +27,8 @@ export function detectContraTransfers(transactions: Transaction[]): boolean[] {
 
   const contraUTRs = new Set<string>();
   utrGroups.forEach((val, utr) => {
-    // Cross-bank or matched credit/debit with same UTR
-    if ((val.banks.size > 1 && val.hasCredit && val.hasDebit) || (val.hasCredit && val.hasDebit)) {
+    // B2 fix: Only flag cross-bank transfers between different user accounts with the same UTR
+    if (val.banks.size > 1 && val.hasCredit && val.hasDebit) {
       contraUTRs.add(utr);
     }
   });

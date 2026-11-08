@@ -12,6 +12,9 @@ import {
 } from "@/lib/supabase/party-mappings";
 import { DEFAULT_STORED_PARTY_NAMES } from "@/lib/constants/default-parties";
 
+// Q8 fix: Named constant instead of magic number
+const MAX_ALLOWED_PARTY_DIRECTORY_SIZE = 200;
+
 export async function GET() {
   try {
     const client = getSupabaseServerClient();
@@ -21,9 +24,9 @@ export async function GET() {
 
     const parties = await fetchPartyNamesFromDB(client);
 
-    // If corrupted with > 200 items (e.g. 1098 raw statement narrations), automatically prune back to authorized 158
-    if (parties.length > 200) {
-      console.log(`Pruning polluted party directory (${parties.length} items) back to authorized 158 list...`);
+    // If corrupted with excess items, automatically prune back to baseline directory
+    if (parties.length > MAX_ALLOWED_PARTY_DIRECTORY_SIZE) {
+      console.log(`Pruning polluted party directory (${parties.length} items) back to baseline list (${DEFAULT_STORED_PARTY_NAMES.length} items)...`);
       await resetPartyNamesInDB(client, DEFAULT_STORED_PARTY_NAMES);
       return NextResponse.json({ parties: DEFAULT_STORED_PARTY_NAMES });
     }

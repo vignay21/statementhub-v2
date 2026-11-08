@@ -29,12 +29,11 @@ export function BackupRestore({ onRestoreCompleted }: BackupRestoreProps) {
 
     try {
       const text = await file.text();
-      const backupData = JSON.parse(text);
-
+      // B6 fix: Send raw text payload directly instead of parsing and re-stringifying
       const res = await fetch("/api/backup/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(backupData),
+        body: text,
       });
 
       const data = await res.json();
