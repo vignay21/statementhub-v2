@@ -5,6 +5,7 @@ import { parseAmount } from "./amount-parser";
 import { extractIdentifier } from "./utr-extractor";
 import { cleanUTR } from "../business/utr-refiner";
 import { extractPartyMatchKey } from "../business/party-match-key";
+import { resolvePartyName } from "../business/party-resolver";
 import { computeFingerprint } from "../business/fingerprint";
 
 export async function normalizeStatementRows(
@@ -69,6 +70,7 @@ export async function normalizeStatementRows(
     }
 
     const party_match_key = extractPartyMatchKey(description);
+    const party_name = resolvePartyName(description, party_match_key);
     const fingerprint = await computeFingerprint(bank, date, amount, type, utr, description, balance);
 
     transactions.push({
@@ -76,7 +78,7 @@ export async function normalizeStatementRows(
       bank,
       date,
       description,
-      party_name: "",
+      party_name,
       amount,
       type,
       utr,

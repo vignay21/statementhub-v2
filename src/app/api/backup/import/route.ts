@@ -6,6 +6,7 @@ import { computeFingerprint } from "@/lib/business/fingerprint";
 import { normalizeDate } from "@/lib/formatters/date";
 import { parseAmount } from "@/lib/parsers/amount-parser";
 import { extractPartyMatchKey } from "@/lib/business/party-match-key";
+import { resolvePartyName } from "@/lib/business/party-resolver";
 import { cleanUTR } from "@/lib/business/utr-refiner";
 import { Transaction } from "@/types/transaction";
 
@@ -165,7 +166,7 @@ export async function POST(req: NextRequest) {
         t.utr || t.UTR || t["UTR / Reference"] || t.ref || t.reference || t.ref_no || ""
       ).trim();
       const utr = cleanUTR(description, rawUtr);
-      const party_name = String(
+      const rawPartyName = String(
         t["Assigned Business / Party Name"] ||
         t.party_name ||
         t["Party Name"] ||
@@ -182,6 +183,7 @@ export async function POST(req: NextRequest) {
       const party_match_key =
         String(t["Party match key"] || t["Party Match Key"] || t.party_match_key || "").trim() ||
         extractPartyMatchKey(description);
+      const party_name = rawPartyName || resolvePartyName(description, party_match_key);
       const source_file = String(
         t["Source file"] || t["Source File"] || t.source_file || "backup_import.json"
       ).trim();

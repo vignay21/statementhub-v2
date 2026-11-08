@@ -61,6 +61,11 @@ export function extractPartyMatchKey(description: string): string {
     return sanitizePartyKey(hyphenMatch[1]);
   }
 
+  // 6. Cash deposit narrations: preserve full phrase (e.g., BY CASH -PARKAL SIKINDER)
+  if (/(?:BY\s+CASH|CASH\s+DEP(?:OSIT)?|CSH\s+DEP)/i.test(desc)) {
+    return sanitizePartyKey(desc);
+  }
+
   // Fallback: take first meaningful chunk
   const chunks = desc.split(/[/:-]/).map((c) => c.trim()).filter(Boolean);
   for (const chunk of chunks) {
@@ -72,7 +77,7 @@ export function extractPartyMatchKey(description: string): string {
   return sanitizePartyKey(desc.slice(0, 40));
 }
 
-function sanitizePartyKey(key: string): string {
+export function sanitizePartyKey(key: string): string {
   return key
     .replace(/[^A-Za-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")

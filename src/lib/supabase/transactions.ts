@@ -1,6 +1,9 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { Transaction } from "@/types/transaction";
 import { deduplicateTransactions } from "../business/deduplication";
+import { extractPartyMatchKey } from "../business/party-match-key";
+import { resolvePartyName } from "../business/party-resolver";
+import { fetchPartyMappingsFromDB } from "./party-mappings";
 import { Database } from "./types";
 
 export interface SyncResult {
@@ -118,25 +121,46 @@ export async function syncTransactionsWithDB(
   const toInsert = dedupResult.newTransactions;
   const skipped = dedupResult.duplicateCount;
 
-  // 2. Insert in chunks of 100
+  // 2. Fetch party mappings to automatically resolve party names for unassigned transactions
+  let mappingMap: Map<string, string> | undefined;
+  try {
+    const mappings = await fetchPartyMappingsFromDB(client);
+    if (mappings && mappings.length > 0) {
+      mappingMap = new Map<string, string>();
+      for (const m of mappings) {
+        if (m.match_key && m.party_name) {
+          mappingMap.set(m.match_key.trim().toUpperCase(), m.party_name.trim());
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Notice: Could not fetch party mappings for auto-assignment:", err);
+  }
+
+  // 3. Insert in chunks of 100
   const chunkSize = 100;
   let inserted = 0;
   const chunkErrors: string[] = [];
 
   for (let i = 0; i < toInsert.length; i += chunkSize) {
-    const chunk = toInsert.slice(i, i + chunkSize).map((t) => ({
-      fingerprint: t.fingerprint,
-      bank: t.bank,
-      date: t.date,
-      description: t.description,
-      party_name: t.party_name || "",
-      amount: t.amount,
-      type: t.type,
-      utr: t.utr || "",
-      balance: t.balance,
-      party_match_key: t.party_match_key,
-      source_file: t.source_file || "",
-    }));
+    const chunk = toInsert.slice(i, i + chunkSize).map((t) => {
+      const matchKey = t.party_match_key || extractPartyMatchKey(t.description);
+      const partyName = t.party_name || resolvePartyName(t.description, matchKey, mappingMap);
+
+      return {
+        fingerprint: t.fingerprint,
+        bank: t.bank,
+        date: t.date,
+        description: t.description,
+        party_name: partyName || "",
+        amount: t.amount,
+        type: t.type,
+        utr: t.utr || "",
+        balance: t.balance,
+        party_match_key: matchKey || "",
+        source_file: t.source_file || "",
+      };
+    });
 
     const { error } = await (client as any).from("transactions").upsert(chunk, {
       onConflict: "fingerprint",

@@ -5,6 +5,7 @@ import { normalizeDate } from "@/lib/formatters/date";
 import { parseAmount } from "@/lib/parsers/amount-parser";
 import { computeFingerprint } from "@/lib/business/fingerprint";
 import { extractPartyMatchKey } from "@/lib/business/party-match-key";
+import { resolvePartyName } from "@/lib/business/party-resolver";
 import { extractIdentifier, isIFSCCode } from "@/lib/parsers/utr-extractor";
 import { Transaction } from "@/types/transaction";
 
@@ -142,6 +143,7 @@ Return ONLY a valid JSON array of objects.`;
           : null;
 
       const party_match_key = extractPartyMatchKey(desc);
+      const party_name = resolvePartyName(desc, party_match_key);
       let utr = extractIdentifier(desc, ref);
       if (isIFSCCode(utr)) {
         utr = "";
@@ -153,7 +155,7 @@ Return ONLY a valid JSON array of objects.`;
         bank,
         date,
         description: desc,
-        party_name: "",
+        party_name,
         amount,
         type,
         utr,

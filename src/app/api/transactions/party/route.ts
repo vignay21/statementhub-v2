@@ -8,6 +8,7 @@ import {
   savePartyNameInDB,
   savePartyMappingInDB,
   fetchPartyNamesFromDB,
+  fetchPartyMappingsFromDB,
   resetPartyNamesInDB,
 } from "@/lib/supabase/party-mappings";
 import { DEFAULT_STORED_PARTY_NAMES } from "@/lib/constants/default-parties";
@@ -22,13 +23,23 @@ export async function GET() {
       return NextResponse.json({ parties: DEFAULT_STORED_PARTY_NAMES });
     }
 
-    const parties = await fetchPartyNamesFromDB(client);
+    const [parties, rawMappings] = await Promise.all([
+      fetchPartyNamesFromDB(client),
+      fetchPartyMappingsFromDB(client),
+    ]);
+
+    const mappings: Record<string, string> = {};
+    for (const m of rawMappings) {
+      if (m.match_key && m.party_name) {
+        mappings[m.match_key.toUpperCase()] = m.party_name;
+      }
+    }
 
     // If corrupted with excess items, automatically prune back to baseline directory
     if (parties.length > MAX_ALLOWED_PARTY_DIRECTORY_SIZE) {
       console.log(`Pruning polluted party directory (${parties.length} items) back to baseline list (${DEFAULT_STORED_PARTY_NAMES.length} items)...`);
       await resetPartyNamesInDB(client, DEFAULT_STORED_PARTY_NAMES);
-      return NextResponse.json({ parties: DEFAULT_STORED_PARTY_NAMES });
+      return NextResponse.json({ parties: DEFAULT_STORED_PARTY_NAMES, mappings });
     }
 
     // Merge baseline 158 with any valid party names
@@ -36,10 +47,10 @@ export async function GET() {
       a.localeCompare(b)
     );
 
-    return NextResponse.json({ parties: merged });
+    return NextResponse.json({ parties: merged, mappings });
   } catch (err: any) {
     console.error("API /transactions/party GET error:", err);
-    return NextResponse.json({ parties: DEFAULT_STORED_PARTY_NAMES });
+    return NextResponse.json({ parties: DEFAULT_STORED_PARTY_NAMES, mappings: {} });
   }
 }
 
@@ -101,13 +112,16 @@ export async function PATCH(req: NextRequest) {
     // Save in stored party names directory
     await savePartyNameInDB(client, party_name);
 
+    if (match_key) {
+      await savePartyMappingInDB(client, match_key, party_name);
+    }
+
     if (fingerprint) {
       const ok = await updateTransactionPartyName(client, fingerprint, party_name);
       return NextResponse.json({ success: ok, party_name });
     }
 
     if (match_key) {
-      await savePartyMappingInDB(client, match_key, party_name);
       const count = await bulkUpdateTransactionPartyByMatchKey(client, match_key, party_name);
       return NextResponse.json({ success: true, updatedCount: count, party_name });
     }

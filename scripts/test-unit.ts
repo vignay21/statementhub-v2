@@ -9,6 +9,8 @@ import { findHeaderRow } from "@/lib/parsers/header-finder";
 import { isAccessCodeValid, hashAccessCode, isValidSessionToken } from "@/lib/auth";
 import { filterAndSortModelObjects } from "@/lib/ai/gemini-models";
 import { getGeminiClient } from "@/lib/ai/gemini-client";
+import { extractPartyMatchKey } from "@/lib/business/party-match-key";
+import { resolvePartyName } from "@/lib/business/party-resolver";
 import { Transaction } from "@/types/transaction";
 
 let passed = 0;
@@ -401,6 +403,29 @@ async function runAll() {
     assert.ok(customClient !== null);
     assert.equal(client1, client2, "Subsequent default requests must reuse singleton");
     assert.notEqual(customClient, client1, "Custom key must return isolated instance");
+  });
+
+  // 9. Party Match Key & Auto Mapping (Cash Deposit & Narration Mapping)
+  console.log("\n--- 9. Party Match Key & Auto Mapping (Cash Deposit & Narration Mapping) ---");
+  test("Extracts clean match key for 'BY CASH -PARKAL SIKINDER' without hyphen truncation", () => {
+    const key = extractPartyMatchKey("BY CASH -PARKAL SIKINDER");
+    assert.equal(key, "BY CASH PARKAL SIKINDER");
+  });
+
+  test("resolvePartyName maps 'BY CASH -PARKAL SIKINDER' to 'CASH DEPOSIT'", () => {
+    assert.equal(resolvePartyName("BY CASH -PARKAL SIKINDER"), "CASH DEPOSIT");
+    assert.equal(resolvePartyName("PARKAL SIKINDER"), "CASH DEPOSIT");
+    assert.equal(resolvePartyName("BY CASH DEP SIKINDER"), "CASH DEPOSIT");
+    assert.equal(resolvePartyName("BY CASH"), "CASH DEPOSIT");
+  });
+
+  test("resolvePartyName matches against custom partyMappings dictionary", () => {
+    const mappings = {
+      "SRI SAI TRADERS": "SUPPLIER A",
+      "BY CASH PARKAL SIKINDER": "CASH DEPOSIT",
+    };
+    assert.equal(resolvePartyName("UPI/CR/123/SRI SAI TRADERS", "SRI SAI TRADERS", mappings), "SUPPLIER A");
+    assert.equal(resolvePartyName("BY CASH -PARKAL SIKINDER", "BY CASH PARKAL SIKINDER", mappings), "CASH DEPOSIT");
   });
 
   console.log("\n=======================================================");

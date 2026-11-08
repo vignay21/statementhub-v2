@@ -12,6 +12,7 @@ import { parseDateToTime } from "@/lib/formatters/date";
 import { getLocalGeminiUsage } from "@/lib/ai/usage-tracker";
 import { StorageStats } from "@/lib/supabase/storage-stats";
 import { cleanTransactionUTR, isIFSCCode } from "@/lib/business/utr-refiner";
+import { resolvePartyName } from "@/lib/business/party-resolver";
 import { inferBank } from "@/lib/parsers/bank-detector";
 
 import { Header } from "@/components/layout/header";
@@ -35,6 +36,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<"search" | "cashflow">("search");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [storedParties, setStoredParties] = useState<string[]>(DEFAULT_STORED_PARTY_NAMES);
+  const [partyMappings, setPartyMappings] = useState<Record<string, string>>({});
   const [supabaseConnected, setSupabaseConnected] = useState(false);
   const [storageStats, setStorageStats] = useState<StorageStats>({
     usedBytes: 0,
@@ -99,6 +101,9 @@ export default function Home() {
           const partyData = await partyRes.json();
           if (Array.isArray(partyData.parties)) {
             partiesFromDB = partyData.parties;
+          }
+          if (partyData.mappings && typeof partyData.mappings === "object") {
+            setPartyMappings(partyData.mappings);
           }
         }
       } catch (err: unknown) {
@@ -254,7 +259,13 @@ export default function Home() {
   const handleStatementsParsed = async (statements: ImportedStatement[]) => {
     const allNew: Transaction[] = [];
     statements.forEach((s) => {
-      const cleaned = s.transactions.map((t) => cleanTransactionUTR(t));
+      const cleaned = s.transactions.map((t) => {
+        const c = cleanTransactionUTR(t);
+        if (!c.party_name) {
+          c.party_name = resolvePartyName(c.description, c.party_match_key, partyMappings);
+        }
+        return c;
+      });
       allNew.push(...cleaned);
     });
 
@@ -318,6 +329,9 @@ export default function Home() {
 
     if (newParty && newParty.trim()) {
       const clean = newParty.trim();
+      if (matchKey) {
+        setPartyMappings((prev) => ({ ...prev, [matchKey.toUpperCase()]: clean }));
+      }
       setStoredParties((prev) => {
         const next = Array.from(new Set([...prev, clean])).sort((a, b) => a.localeCompare(b));
         try {

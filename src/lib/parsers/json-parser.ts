@@ -4,6 +4,7 @@ import { computeFingerprint } from "../business/fingerprint";
 import { normalizeDate } from "../formatters/date";
 import { parseAmount } from "./amount-parser";
 import { extractPartyMatchKey } from "../business/party-match-key";
+import { resolvePartyName } from "../business/party-resolver";
 import { extractIdentifier, isIFSCCode } from "./utr-extractor";
 
 export async function parseJSONStatement(file: File): Promise<ImportedStatement> {
@@ -57,7 +58,7 @@ export async function parseJSONStatement(file: File): Promise<ImportedStatement>
       const fixed = extractIdentifier(description, "");
       utr = isIFSCCode(fixed) ? "" : fixed;
     }
-    const party_name = String(
+    const rawPartyName = String(
       t["Assigned Business / Party Name"] ||
       t.party_name ||
       t["Party Name"] ||
@@ -74,6 +75,7 @@ export async function parseJSONStatement(file: File): Promise<ImportedStatement>
     const party_match_key =
       String(t["Party match key"] || t["Party Match Key"] || t.party_match_key || "").trim() ||
       extractPartyMatchKey(description);
+    const party_name = rawPartyName || resolvePartyName(description, party_match_key);
     const source_file = String(
       t["Source file"] || t["Source File"] || t.source_file || file.name
     ).trim();
