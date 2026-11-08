@@ -132,10 +132,13 @@ export function TransactionTable({
   const saveEditing = async (t: Transaction, overrideValue?: string) => {
     if (editingFingerprint) {
       const finalParty = (overrideValue !== undefined ? overrideValue : partyInput).trim();
-      await onUpdatePartyName(t.fingerprint, t.party_match_key, finalParty);
+      // Dismiss editing UI immediately so the user experiences instant response (0ms)
       setEditingFingerprint(null);
       setShowSuggestions(false);
       setSuggestIndex(-1);
+
+      // Trigger optimistic persistence in background
+      await onUpdatePartyName(t.fingerprint, t.party_match_key, finalParty);
     }
   };
 

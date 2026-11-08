@@ -109,25 +109,30 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "party_name is required." }, { status: 400 });
     }
 
-    // Save in stored party names directory
-    await savePartyNameInDB(client, party_name);
+    const cleanParty = String(party_name).trim();
+
+    // Parallelize writes to Supabase for minimum latency
+    const tasks: Promise<any>[] = [];
 
     if (match_key) {
-      await savePartyMappingInDB(client, match_key, party_name);
+      tasks.push(savePartyMappingInDB(client, match_key, cleanParty));
+    } else {
+      tasks.push(savePartyNameInDB(client, cleanParty));
     }
 
     if (fingerprint) {
-      const ok = await updateTransactionPartyName(client, fingerprint, party_name);
-      return NextResponse.json({ success: ok, party_name });
+      tasks.push(updateTransactionPartyName(client, fingerprint, cleanParty));
+    } else if (match_key) {
+      tasks.push(bulkUpdateTransactionPartyByMatchKey(client, match_key, cleanParty));
     }
 
-    if (match_key) {
-      const count = await bulkUpdateTransactionPartyByMatchKey(client, match_key, party_name);
-      return NextResponse.json({ success: true, updatedCount: count, party_name });
-    }
+    const results = await Promise.all(tasks);
 
-    // Direct addition of party name without updating a transaction
-    return NextResponse.json({ success: true, party_name });
+    return NextResponse.json({
+      success: true,
+      party_name: cleanParty,
+      updatedCount: typeof results[1] === "number" ? results[1] : 1,
+    });
   } catch (err: any) {
     console.error("API /transactions/party error:", err);
     return NextResponse.json({ error: err.message || "Failed to update party" }, { status: 500 });

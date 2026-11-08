@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { PartyMapping } from "@/types/transaction";
+import { sanitizePartyKey } from "../business/party-match-key";
 import { Database } from "./types";
 
 export async function fetchPartyNamesFromDB(
@@ -7,18 +8,7 @@ export async function fetchPartyNamesFromDB(
 ): Promise<string[]> {
   const namesSet = new Set<string>();
 
-  // From party_names
-  const { data: pNames, error: pNamesError } = await (client as any).from("party_names").select("name");
-  // E3 fix: Properly log and handle error
-  if (pNamesError) {
-    console.warn("Notice: Error fetching party names from DB:", pNamesError.message);
-  } else if (pNames) {
-    pNames.forEach((p: any) => {
-      if (p.name && p.name.trim()) namesSet.add(p.name.trim());
-    });
-  }
-
-  // From party_mappings
+  // Fetch all known party names directly from party_mappings (ultra-fast query)
   const { data: pMappings, error: pMappingsError } = await (client as any)
     .from("party_mappings")
     .select("party_name")
@@ -42,9 +32,15 @@ export async function savePartyNameInDB(
   const cleanName = name.trim();
   if (!cleanName) return false;
 
-  const { error } = await (client as any).from("party_names").upsert({ name: cleanName });
+  const matchKey = sanitizePartyKey(cleanName);
+  const { error } = await (client as any).from("party_mappings").upsert({
+    match_key: matchKey,
+    party_name: cleanName,
+    updated_at: new Date().toISOString(),
+  });
+
   if (error) {
-    console.error("Error saving party name:", error);
+    console.error("Error saving party name in party_mappings:", error);
     return false;
   }
   return true;
