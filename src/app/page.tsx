@@ -53,6 +53,7 @@ export default function Home() {
   // Search & Filter state
   const [searchMode, setSearchMode] = useState<SearchMode>("utr");
   const [searchQuery, setSearchQuery] = useState("");
+  const [autoEditFingerprint, setAutoEditFingerprint] = useState<string | null>(null);
   const [selectedBank, setSelectedBank] = useState("all");
   const [period, setPeriod] = useState<PeriodFilter>("all");
   const [selectedMonth, setSelectedMonth] = useState("");
@@ -323,6 +324,7 @@ export default function Home() {
     const previousTransactions = transactions;
 
     // Optimistic local update
+    setAutoEditFingerprint(null);
     setTransactions((prev) =>
       prev.map((t) => (t.fingerprint === fingerprint ? { ...t, party_name: newParty } : t))
     );
@@ -788,6 +790,23 @@ export default function Home() {
     return counts;
   }, [annotatedTransactions]);
 
+  const handleSelectUTR = (utr: string) => {
+    const clean = utr.trim().toLowerCase();
+    const target =
+      transactions.find((t) => t.utr && t.utr.trim().toLowerCase() === clean && !t.party_name) ||
+      transactions.find((t) => t.utr && t.utr.trim().toLowerCase() === clean);
+    if (target) {
+      setAutoEditFingerprint(target.fingerprint);
+    }
+  };
+
+  const handleQueryChange = (q: string) => {
+    setSearchQuery(q);
+    if (!q) {
+      setAutoEditFingerprint(null);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#090d16]">
       {/* Top Header */}
@@ -917,7 +936,8 @@ export default function Home() {
               mode={searchMode}
               query={searchQuery}
               onModeChange={setSearchMode}
-              onQueryChange={setSearchQuery}
+              onQueryChange={handleQueryChange}
+              onSelectUTR={handleSelectUTR}
               uniqueUTRs={uniqueUTRs}
               storedParties={storedParties}
             />
@@ -927,6 +947,7 @@ export default function Home() {
               transactions={filteredTransactions}
               onUpdatePartyName={handleUpdatePartyName}
               storedParties={storedParties}
+              autoEditFingerprint={autoEditFingerprint}
             />
           </div>
         )}

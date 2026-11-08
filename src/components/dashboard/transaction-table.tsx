@@ -14,12 +14,14 @@ interface TransactionTableProps {
   transactions: Transaction[];
   onUpdatePartyName: (fingerprint: string, matchKey: string, newParty: string) => Promise<void>;
   storedParties?: string[];
+  autoEditFingerprint?: string | null;
 }
 
 export function TransactionTable({
   transactions,
   onUpdatePartyName,
   storedParties = [],
+  autoEditFingerprint,
 }: TransactionTableProps) {
   const [editingFingerprint, setEditingFingerprint] = useState<string | null>(null);
   const [partyInput, setPartyInput] = useState("");
@@ -126,8 +128,22 @@ export function TransactionTable({
     setPartyInput(t.party_name || "");
     setShowSuggestions(true);
     setSuggestIndex(-1);
-    setTimeout(updateDropdownPosition, 30);
+    setTimeout(() => {
+      updateDropdownPosition();
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }, 50);
   };
+
+  // Automatically initiate editing and focus party input if autoEditFingerprint is provided
+  useEffect(() => {
+    if (autoEditFingerprint) {
+      const target = transactions.find((t) => t.fingerprint === autoEditFingerprint);
+      if (target) {
+        startEditing(target);
+      }
+    }
+  }, [autoEditFingerprint, transactions]);
 
   const saveEditing = async (t: Transaction, overrideValue?: string) => {
     if (editingFingerprint) {

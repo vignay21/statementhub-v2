@@ -11,6 +11,7 @@ interface SearchBarProps {
   query: string;
   onModeChange: (mode: SearchMode) => void;
   onQueryChange: (query: string) => void;
+  onSelectUTR?: (utr: string) => void;
   uniqueUTRs?: string[];
   storedParties?: string[];
 }
@@ -25,6 +26,7 @@ export function SearchBar({
   query,
   onModeChange,
   onQueryChange,
+  onSelectUTR,
   uniqueUTRs = [],
   storedParties = [],
 }: SearchBarProps) {
@@ -127,11 +129,10 @@ export function SearchBar({
     }
   }, [selectedIndex]);
 
-  const selectSuggestion = (itemText: string) => {
+  const selectSuggestion = (itemText: string, itemType?: string) => {
     onQueryChange(itemText);
     setShowSuggestions(false);
     setSelectedIndex(-1);
-    inputRef.current?.focus();
 
     // Auto-copy selected UTR/suggestion to clipboard simultaneously
     if (itemText && typeof navigator !== "undefined" && navigator.clipboard) {
@@ -141,6 +142,13 @@ export function SearchBar({
       }).catch((err) => {
         console.warn("Notice: Failed to auto-copy to clipboard:", err);
       });
+    }
+
+    // Trigger auto-focus on party name editing for selected UTR
+    if (itemType === "UTR" || mode === "utr") {
+      onSelectUTR?.(itemText);
+    } else {
+      inputRef.current?.focus();
     }
   };
 
@@ -166,7 +174,7 @@ export function SearchBar({
     } else if (e.key === "Enter") {
       if (showSuggestions && selectedIndex >= 0 && selectedIndex < suggestions.length) {
         e.preventDefault();
-        selectSuggestion(suggestions[selectedIndex].text);
+        selectSuggestion(suggestions[selectedIndex].text, suggestions[selectedIndex].type);
       } else if (showSuggestions) {
         setShowSuggestions(false);
       }
@@ -178,7 +186,7 @@ export function SearchBar({
       }
     } else if (e.key === "Tab") {
       if (showSuggestions && selectedIndex >= 0 && selectedIndex < suggestions.length) {
-        selectSuggestion(suggestions[selectedIndex].text);
+        selectSuggestion(suggestions[selectedIndex].text, suggestions[selectedIndex].type);
       } else {
         setShowSuggestions(false);
       }
@@ -315,7 +323,7 @@ export function SearchBar({
                     aria-selected={isSelected}
                     onMouseDown={(e) => {
                       e.preventDefault();
-                      selectSuggestion(item.text);
+                      selectSuggestion(item.text, item.type);
                     }}
                     onMouseEnter={() => setSelectedIndex(idx)}
                     className={`px-3.5 py-2.5 text-sm cursor-pointer flex items-center justify-between transition-colors ${
