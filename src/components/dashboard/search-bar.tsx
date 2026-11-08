@@ -132,6 +132,16 @@ export function SearchBar({
     setShowSuggestions(false);
     setSelectedIndex(-1);
     inputRef.current?.focus();
+
+    // Auto-copy selected UTR/suggestion to clipboard simultaneously
+    if (itemText && typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(itemText).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1800);
+      }).catch((err) => {
+        console.warn("Notice: Failed to auto-copy to clipboard:", err);
+      });
+    }
   };
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
