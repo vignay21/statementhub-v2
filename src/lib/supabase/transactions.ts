@@ -76,7 +76,7 @@ export async function fetchDedupSignaturesFromDB(
     const to = Math.min(from + pageSize - 1, limit - 1);
     const { data, error } = await (client as any)
       .from("transactions")
-      .select("fingerprint, bank, date, amount, type, utr, balance")
+      .select("fingerprint, bank, date, amount, type, utr, balance, description")
       .order("id", { ascending: false })
       .range(from, to);
 
@@ -95,7 +95,7 @@ export async function fetchDedupSignaturesFromDB(
     fingerprint: r.fingerprint,
     bank: r.bank,
     date: r.date,
-    description: "",
+    description: r.description || "",
     party_name: "",
     amount: Number(r.amount),
     type: r.type as "Credit" | "Debit",

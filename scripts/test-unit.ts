@@ -305,6 +305,42 @@ async function runAll() {
     assert.equal(res.duplicateCount, 1, "Duplicate without UTR should be detected via balance key");
   });
 
+  test("Layer 3: Identifies duplicate transaction when UTR differed across parser runs (e.g. IFSC code vs genuine UTR)", () => {
+    const existing: Transaction[] = [
+      {
+        fingerprint: "fp_old_hash_with_ifsc",
+        bank: "HDFC Bank",
+        date: "01-11-2026",
+        amount: 111000,
+        type: "Debit",
+        utr: "KKBK0007679", // Accidental IFSC captured by older parser
+        balance: 1712291.45,
+        description: "NEFT DR-KKBK0007679-KOMAKULA RAJENDER-SANDOZ - MUM-HDFCH01369258403-NET BANKING SI -HOMELOANEMI",
+        party_name: "HOME LOAN EMI",
+        party_match_key: "",
+        source_file: "old_statement.xls",
+      },
+    ];
+    const incoming: Transaction[] = [
+      {
+        fingerprint: "fp_new_hash_with_refined_utr",
+        bank: "HDFC Bank",
+        date: "01-11-2026",
+        amount: 111000,
+        type: "Debit",
+        utr: "HDFCH01369258403", // Refined genuine UTR
+        balance: 1712291.45,
+        description: "NEFT DR-KKBK0007679-KOMAKULA RAJENDER-SANDOZ - MUM-HDFCH01369258403-NET BANKING SI -HOMELOANEMI",
+        party_name: "",
+        party_match_key: "",
+        source_file: "new_statement.xls",
+      },
+    ];
+    const res = deduplicateTransactions(incoming, existing);
+    assert.equal(res.duplicateCount, 1, "Must recognize duplicate statement row across parser upgrades");
+    assert.equal(res.newTransactions.length, 0);
+  });
+
   // 5. Header Finder & Column Mapper (Q10)
   console.log("\n--- 5. Header Finder & Column Mapper (Q10) ---");
   test("Q10 Fix: Word boundary check prevents 'date' from over-matching 'updated' or 'candidate'", () => {
