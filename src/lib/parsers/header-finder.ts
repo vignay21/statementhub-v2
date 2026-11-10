@@ -33,12 +33,13 @@ export function findHeaderRow(rows: unknown[][]): {
 
     score = matchedCategories.size;
 
-    // Must have date + description + at least one debit/credit/balance/reference
+    // Must have date + description + at least one debit/credit/amount/balance/reference
     const hasDate = matchedCategories.has("date");
     const hasDesc = matchedCategories.has("description");
     const hasAmount =
       matchedCategories.has("debit") ||
       matchedCategories.has("credit") ||
+      matchedCategories.has("amount") ||
       matchedCategories.has("reference");
 
     if (hasDate && hasDesc && hasAmount && score > bestScore) {

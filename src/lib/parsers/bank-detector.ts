@@ -14,7 +14,7 @@ export function inferBank(
 
   // 1. Direct header / filename matching
   if (combined.includes("hdfc")) return "HDFC Bank";
-  if (combined.includes("icici") || combined.includes("icic")) return "ICICI Bank";
+  if (combined.includes("icici") || combined.includes("icic") || (combined.includes("transactions list -") && !combined.includes("canara") && !combined.includes("hdfc") && !combined.includes("sbi"))) return "ICICI Bank";
   if (combined.includes("canara") || combined.includes("cnrb") || combined.includes("syndicate")) return "Canara Bank";
   if (combined.includes("axis") || combined.includes("utib")) return "Axis Bank";
   if (combined.includes("kotak") || combined.includes("kkbk")) return "Kotak Bank";
@@ -42,8 +42,8 @@ export function inferBank(
       return "Kotak Bank";
     }
 
-    // ICICI Bank: ICICI MMT/IMPS, ICICI RTGS UTR (ICICR...)
-    if (/\bMMT\/IMPS|\bICICR\d|\bICIC0SF|\bICIC0\d{6}/i.test(descSample)) {
+    // ICICI Bank: ICICI MMT/IMPS, ICICI RTGS UTR (ICICR...), @waicici, ICIW
+    if (/\bMMT\/IMPS|\bICICR\d|\bICIC0SF|\bICIC0\d{6}|@waicici|\bICIW/i.test(descSample)) {
       return "ICICI Bank";
     }
 

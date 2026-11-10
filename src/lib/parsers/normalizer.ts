@@ -30,27 +30,52 @@ export async function normalizeStatementRows(
     ).trim();
 
     // Determine Debit / Credit & Amount
-    const debitRes =
-      columnMap.debitCol >= 0 ? parseAmount(row[columnMap.debitCol] as any) : { amount: 0, raw: 0 };
-    const creditRes =
-      columnMap.creditCol >= 0 ? parseAmount(row[columnMap.creditCol] as any) : { amount: 0, raw: 0 };
-
     let amount = 0;
     let type: "Credit" | "Debit" = "Debit";
 
-    if (creditRes.amount > 0 && debitRes.amount === 0) {
-      amount = creditRes.amount;
-      type = "Credit";
-    } else if (debitRes.amount > 0 && creditRes.amount === 0) {
-      amount = debitRes.amount;
-      type = "Debit";
-    } else if (creditRes.amount > 0) {
-      amount = creditRes.amount;
-      type = "Credit";
-    } else if (debitRes.amount > 0) {
-      amount = debitRes.amount;
-      type = "Debit";
-    } else {
+    // 1. Single amount column with Type indicator (e.g. ICICI / Canara Cr/Dr column)
+    if (columnMap.amountCol !== undefined && columnMap.amountCol >= 0) {
+      const amtRes = parseAmount(row[columnMap.amountCol] as any);
+      if (amtRes.amount > 0) {
+        amount = amtRes.amount;
+        if (columnMap.typeCol !== undefined && columnMap.typeCol >= 0) {
+          const typeStr = String(row[columnMap.typeCol] || "").trim().toUpperCase();
+          if (typeStr.includes("CR") || typeStr.includes("CREDIT")) {
+            type = "Credit";
+          } else if (typeStr.includes("DR") || typeStr.includes("DEBIT")) {
+            type = "Debit";
+          } else {
+            type = amtRes.raw < 0 ? "Debit" : "Credit";
+          }
+        } else {
+          type = amtRes.raw < 0 ? "Debit" : "Credit";
+        }
+      }
+    }
+
+    // 2. Separate Debit / Credit columns fallback
+    if (amount === 0) {
+      const debitRes =
+        columnMap.debitCol >= 0 ? parseAmount(row[columnMap.debitCol] as any) : { amount: 0, raw: 0 };
+      const creditRes =
+        columnMap.creditCol >= 0 ? parseAmount(row[columnMap.creditCol] as any) : { amount: 0, raw: 0 };
+
+      if (creditRes.amount > 0 && debitRes.amount === 0) {
+        amount = creditRes.amount;
+        type = "Credit";
+      } else if (debitRes.amount > 0 && creditRes.amount === 0) {
+        amount = debitRes.amount;
+        type = "Debit";
+      } else if (creditRes.amount > 0) {
+        amount = creditRes.amount;
+        type = "Credit";
+      } else if (debitRes.amount > 0) {
+        amount = debitRes.amount;
+        type = "Debit";
+      }
+    }
+
+    if (amount === 0) {
       // Amount was 0 or unparseable, skip
       continue;
     }

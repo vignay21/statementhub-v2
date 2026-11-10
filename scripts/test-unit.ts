@@ -6,6 +6,8 @@ import { cleanUTR, cleanTransactionUTR } from "@/lib/business/utr-refiner";
 import { deduplicateTransactions } from "@/lib/business/deduplication";
 import { matchesHeaderAlias, mapColumns } from "@/lib/parsers/column-mapper";
 import { findHeaderRow } from "@/lib/parsers/header-finder";
+import { normalizeStatementRows } from "@/lib/parsers/normalizer";
+import { inferBank } from "@/lib/parsers/bank-detector";
 import { isAccessCodeValid, hashAccessCode, isValidSessionToken } from "@/lib/auth";
 import { filterAndSortModelObjects } from "@/lib/ai/gemini-models";
 import { getGeminiClient } from "@/lib/ai/gemini-client";
@@ -368,6 +370,47 @@ async function runAll() {
     assert.equal(map.debitCol, 3);
     assert.equal(map.creditCol, 4);
     assert.equal(map.balanceCol, 5);
+  });
+
+  test("mapColumns & normalizer correctly handle ICICI single Amount + Cr/Dr format", async () => {
+    const headers = [
+      "No.",
+      "Transaction ID",
+      "Value Date",
+      "Txn Posted Date",
+      "ChequeNo.",
+      "Description",
+      "Cr/Dr",
+      "Transaction Amount(INR)",
+      "Available Balance(INR)"
+    ];
+    const map = mapColumns(headers);
+    assert.equal(map.dateCol, 2);
+    assert.equal(map.descCol, 5);
+    assert.equal(map.refCol, 1);
+    assert.equal(map.typeCol, 6, "Cr/Dr column must be identified as typeCol");
+    assert.equal(map.amountCol, 7, "Transaction Amount(INR) must be identified as amountCol");
+    assert.equal(map.balanceCol, 8);
+    assert.equal(map.debitCol, -1, "Cr/Dr must NOT be falsely identified as debitCol");
+
+    const sampleRows = [
+      headers,
+      ["1.0", "S89662450", "01/11/2026", "01/11/2026 09:09:23 AM", "-", "UPI/THOTA LAXM/Payment", "CR", "4621.0", "187213.32"],
+      ["23.0", "S14391552", "03/11/2026", "03/11/2026 12:33:31 PM", "-", "MMT/IMPS/630712378713/Transfer", "DR", "425818.0", "100000.32"]
+    ];
+
+    const txns = await normalizeStatementRows(sampleRows, map, "ICICI Bank", "test.xlsx", 1);
+    assert.equal(txns.length, 2);
+    assert.equal(txns[0].amount, 4621);
+    assert.equal(txns[0].type, "Credit");
+    assert.equal(txns[1].amount, 425818);
+    assert.equal(txns[1].type, "Debit");
+
+    const bank = inferBank("DetailedStatement_749205003098.xlsx", [
+      "DETAILED STATEMENT",
+      "Transactions List -   -LAKSHMI DEVI AGENCIES (INR) - 749205003098"
+    ], ["MMT/IMPS/630712378713/LAKSHMIDEVIAGEN/CNRB0006850"]);
+    assert.equal(bank, "ICICI Bank");
   });
 
   test("findHeaderRow identifies header row when prefixed with metadata rows", () => {

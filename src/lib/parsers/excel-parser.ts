@@ -42,7 +42,7 @@ export async function parseExcelStatement(file: File): Promise<ImportedStatement
   // Cover rows & sheet names
   const topLines = [
     workbook.SheetNames.join(" "),
-    ...rawRows.slice(0, Math.max(headerIndex + 1, 15)).map((r) => r.join(" ")),
+    ...rawRows.slice(0, headerIndex + 1).map((r) => r.join(" ")),
   ];
 
   const bank = inferBank(file.name, topLines, sampleDescriptions);

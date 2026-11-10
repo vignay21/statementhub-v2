@@ -34,7 +34,7 @@ export async function parseCSVStatement(file: File): Promise<ImportedStatement> 
                   .filter(Boolean)
               : [];
 
-          const topLines = rawRows.slice(0, Math.max(headerIndex + 1, 15)).map((r) => r.join(" "));
+          const topLines = rawRows.slice(0, headerIndex + 1).map((r) => r.join(" "));
           const bank = inferBank(file.name, topLines, sampleDescriptions);
 
           const transactions = await normalizeStatementRows(

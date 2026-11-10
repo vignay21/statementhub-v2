@@ -30,9 +30,35 @@ export const HEADER_ALIASES = {
     "remarks",
     "transaction details",
   ],
+  type: [
+    "cr/dr",
+    "dr/cr",
+    "cr / dr",
+    "dr / cr",
+    "type",
+    "txn type",
+    "transaction type",
+  ],
+  amount: [
+    "transaction amount(inr)",
+    "transaction amount (inr)",
+    "transaction amount",
+    "txn amount",
+    "amount(inr)",
+    "amount (inr)",
+    "amount",
+    "txn amt",
+  ],
   debit: ["withdrawal amt", "withdrawal", "debit", "dr amount", "dr"],
   credit: ["deposit amt", "deposit", "credit", "cr amount", "cr"],
-  balance: ["closing balance", "balance", "bal"],
+  balance: [
+    "available balance(inr)",
+    "available balance (inr)",
+    "available balance",
+    "closing balance",
+    "balance",
+    "bal",
+  ],
 } as const;
 
 export interface BankStyle {
