@@ -464,6 +464,11 @@ async function runAll() {
     assert.equal(resolvePartyName("BY CASH -PARKAL SIKINDER", "BY CASH PARKAL SIKINDER", mappings), "CASH DEPOSIT");
   });
 
+  test("resolvePartyName maps Canara Bank Hanamkonda Home Loan CASA drawdown to 'HNK HOME LOAN EMI'", () => {
+    const narration = "160003276880 -RAJENDER KOMAKULA Drawdown From CASA.";
+    assert.equal(resolvePartyName(narration), "HNK HOME LOAN EMI");
+  });
+
   console.log("\n=======================================================");
   console.log(`  Test Results: ${passed} Passed, ${failed} Failed`);
   console.log("=======================================================\n");

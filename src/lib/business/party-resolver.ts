@@ -45,6 +45,11 @@ export function resolvePartyName(
     return "CASH DEPOSIT";
   }
 
+  // 3. Canara Bank Hanamkonda Home Loan EMI
+  if (/160003276880/i.test(desc) || /Drawdown From CASA/i.test(desc)) {
+    return "HNK HOME LOAN EMI";
+  }
+
   return "";
 }
 
