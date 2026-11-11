@@ -50,6 +50,16 @@ export function SearchBar({
     return () => window.removeEventListener("keydown", handleGlobalKeyDown);
   }, []);
 
+  const isInitialMount = useRef(true);
+  // Auto-focus search input whenever search mode changes
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    inputRef.current?.focus();
+  }, [mode]);
+
   // Close suggestions on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -193,6 +203,14 @@ export function SearchBar({
     }
   };
 
+  const handleModeClick = (newMode: SearchMode) => {
+    onModeChange(newMode);
+    onQueryChange("");
+    setShowSuggestions(false);
+    setSelectedIndex(-1);
+    inputRef.current?.focus();
+  };
+
   return (
     <div className="space-y-2.5">
       {/* Mode Selector Tabs */}
@@ -200,7 +218,9 @@ export function SearchBar({
         <span className="text-slate-400 font-medium mr-1">Search Type:</span>
 
         <button
-          onClick={() => onModeChange("utr")}
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => handleModeClick("utr")}
           className={`px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition-all ${
             mode === "utr"
               ? "bg-indigo-600 text-white shadow-sm"
@@ -212,7 +232,9 @@ export function SearchBar({
         </button>
 
         <button
-          onClick={() => onModeChange("date")}
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => handleModeClick("date")}
           className={`px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition-all ${
             mode === "date"
               ? "bg-indigo-600 text-white shadow-sm"
@@ -224,7 +246,9 @@ export function SearchBar({
         </button>
 
         <button
-          onClick={() => onModeChange("amount")}
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => handleModeClick("amount")}
           className={`px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition-all ${
             mode === "amount"
               ? "bg-indigo-600 text-white shadow-sm"
@@ -236,7 +260,9 @@ export function SearchBar({
         </button>
 
         <button
-          onClick={() => onModeChange("party")}
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => handleModeClick("party")}
           className={`px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition-all ${
             mode === "party"
               ? "bg-indigo-600 text-white shadow-sm"
@@ -248,7 +274,9 @@ export function SearchBar({
         </button>
 
         <button
-          onClick={() => onModeChange("all")}
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => handleModeClick("all")}
           className={`px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition-all ${
             mode === "all"
               ? "bg-indigo-600 text-white shadow-sm"
