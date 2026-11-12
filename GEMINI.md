@@ -10,7 +10,7 @@
 *(Add your custom instructions, preferences, and rules below. The agent will strictly follow them across all turns.)*
 
 - **Explain & Confirm Before Fixing:** When a problem or task is identified, first explain the problem and the proposed fix clearly. Do NOT implement any code changes until the user gives explicit approval (e.g. says "yes", "proceed", or confirms).
-- **Explicit Permission Before Git Push:** Always ask for explicit permission from the user before executing `git push` to push code to GitHub or any remote repository.
+- **Auto-Commit and Push Upon Approval:** Once the user approves an implementation (e.g. says "yes", "proceed", or confirms), proceed with implementation, run unit tests and build checks, and then directly commit and `git push` the code to GitHub/remote. No separate confirmation is needed before pushing.
 - **Unpushed Commits Reminder:** Proactively check and remind the user if there are unpushed local commits or uncommitted changes before starting any new task.
 - **Party Name Mapping:** Always ensure narration mappings (e.g. `BY CASH -PARKAL SIKINDER` -> `CASH DEPOSIT`) persist in `party_mappings` and auto-apply to future transactions.
 - **Performance & Responsiveness:** UI party edits must remain instantaneous (optimistic update with zero perceptible delay on Enter/Select).
