@@ -143,14 +143,14 @@ async function runAll() {
     assert.equal(flags[1], true, "ICICI credit in cross-bank transfer must be flagged as contra");
   });
 
-  test("Flags transactions with self-transfer keywords in party name or narration", () => {
+  test("Strict Contra Rule: Single-bank transactions with self-transfer keywords but no opposite UTR are NOT flagged", () => {
     const txns: Transaction[] = [
       {
         fingerprint: "tx1",
         bank: "SBI",
         date: "03-04-2024",
         description: "Transfer to own a/c 1234",
-        party_name: "",
+        party_name: "Self",
         amount: 10000,
         type: "Debit",
         utr: "",
@@ -160,7 +160,7 @@ async function runAll() {
       },
     ];
     const flags = detectContraTransfers(txns);
-    assert.equal(flags[0], true);
+    assert.equal(flags[0], false, "Without double UTR across different banks, keyword alone must NOT be contra");
   });
 
   // 3. UTR Refiner & Cleaner Tests (B7, B10, A2)
