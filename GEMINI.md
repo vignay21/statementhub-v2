@@ -36,6 +36,11 @@
   - **Canara Bank (`CNRB0006850`):** Core Business Current Account (customer receipts, pharma company supplier NEFTs, Canara home loan EMI).
   - **ICICI Bank (`...3098`):** Customer QR / UPI Collection Current Account.
   - **HDFC Bank:** Personal Savings Account in her own name (used as the Personal Wealth Hub for personal drawings, household, RD, PPF, Mutual Funds, and Kotak loan routing).
+- **Key Goals & Investment Roadmap:**
+  - **New House Construction/Purchase:** Planning to build or buy a house on an existing plot (budget ~₹50 Lakhs phased over 12–15 months without taking new debt).
+  - **Annual International Vacations:** Plan one international trip every year with her two sons (all travel, hotel, visa, and tour expenses 100% covered by her; funded via dedicated ₹20k–₹25k/mo Vacation RD in HDFC).
+  - **Mutual Fund Investments:** ₹35,000 to ₹45,000 / month SIPs in diversified equity/flexicap/index funds to beat inflation and build retirement wealth (~₹1.25+ Cr by age 58).
+  - **Public Provident Fund (PPF):** Maxing out PPF (₹1.50 Lakhs/year) using Option A (12-month RD of ₹12,500/mo in HDFC, swept into PPF between April 1st and April 5th every year for 100% tax-free, court-shielded retirement safety).
 
 ---
 
