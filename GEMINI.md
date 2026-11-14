@@ -20,7 +20,26 @@
 
 ---
 
-## 2. Codebase Architecture
+## 2. Business & Family Financial Context
+*(Permanent profile & background context for personal advisory and business planning)*
+
+- **User Profile:** 43-year-old female entrepreneur independently heading and operating the family wholesale pharmaceutical distribution business (**Lakshmi Devi Agencies**, Parkal/Warangal, Telangana; annual turnover ~₹4.56 Crore).
+- **Family Structure:**
+  - **Late Husband:** Rajender Komakula (deceased; former proprietor, transitioned to her leadership).
+  - **Son 1:** Software Engineer earning **₹7 LPA** (pays **₹0 Income Tax** under New Tax Regime Section 87A rebate).
+  - **Son 2:** In **MCA Final Year** (completing post-graduate studies).
+- **Existing Loans & EMI Servicing Routes:**
+  - **Kotak Home Loan (Hyderabad Property):** Outstanding principal balance ~₹1.00 Crore. Current EMI: **₹ 1,11,000 / month** (serviced via recurring transfer from personal HDFC Savings Account $\rightarrow$ Kotak Savings Account `...6180`, where it auto-debits).
+  - **Canara Home Loan (Hanamkonda Property):** Current EMI: **₹ 37,458 / month** (auto-debited directly from Canara Bank Current Account `CNRB0006850`).
+  - Total combined loan EMI burden: **~₹ 1.48 Lakhs / month**.
+- **Banking Structure:**
+  - **Canara Bank (`CNRB0006850`):** Core Business Current Account (customer receipts, pharma company supplier NEFTs, Canara home loan EMI).
+  - **ICICI Bank (`...3098`):** Customer QR / UPI Collection Current Account.
+  - **HDFC Bank:** Personal Savings Account in her own name (used as the Personal Wealth Hub for personal drawings, household, RD, PPF, Mutual Funds, and Kotak loan routing).
+
+---
+
+## 3. Codebase Architecture
 - **Framework:** Next.js 15 (App Router), TypeScript, Tailwind CSS, Lucide icons.
 - **Database:** Supabase PostgreSQL (`transactions`, `party_mappings`).
 - **Parsing Pipelines:**
@@ -35,7 +54,6 @@
 
 ---
 
-## 3. Deployment & Live Environment
+## 4. Deployment & Live Environment
 - **Live Production URL:** https://statementhub-v2.vercel.app/
 - **Hosting Platform:** Vercel (Production)
-
