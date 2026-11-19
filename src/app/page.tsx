@@ -20,6 +20,7 @@ import { Footer } from "@/components/layout/footer";
 import { FileDropzone } from "@/components/upload/file-dropzone";
 import { BankLegend } from "@/components/dashboard/bank-legend";
 import { QuickCashflow } from "@/components/dashboard/quick-cashflow";
+import { PrivacyPinModal } from "@/components/dashboard/privacy-pin-modal";
 import { SearchBar } from "@/components/dashboard/search-bar";
 import { FiltersBar } from "@/components/dashboard/filters-bar";
 import { TransactionTable } from "@/components/dashboard/transaction-table";
@@ -49,6 +50,8 @@ export default function Home() {
   });
   const [geminiRequestsLeft, setGeminiRequestsLeft] = useState(1500);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isFinancialsUnlocked, setIsFinancialsUnlocked] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
 
   // Search & Filter state
   const [searchMode, setSearchMode] = useState<SearchMode>("utr");
@@ -807,6 +810,17 @@ export default function Home() {
     }
   };
 
+  const handleTogglePrivacy = () => {
+    if (isFinancialsUnlocked) {
+      setIsFinancialsUnlocked(false);
+      if (activeTab === "cashflow") {
+        setActiveTab("search");
+      }
+    } else {
+      setShowPinModal(true);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#090d16]">
       {/* Top Header */}
@@ -817,6 +831,8 @@ export default function Home() {
         geminiRequestsLeft={geminiRequestsLeft}
         onRefresh={loadData}
         isRefreshing={isRefreshing}
+        isFinancialsUnlocked={isFinancialsUnlocked}
+        onTogglePrivacy={handleTogglePrivacy}
       />
 
       <main className="flex-1 max-w-[1800px] w-full mx-auto px-4 lg:px-8 py-5 space-y-5">
@@ -863,17 +879,19 @@ export default function Home() {
             <span>Unified Transaction Search</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab("cashflow")}
-            className={`py-2.5 px-4 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all ${
-              activeTab === "cashflow"
-                ? "border-indigo-500 text-indigo-400"
-                : "border-transparent text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            <TrendingUp className="h-4 w-4" />
-            <span>Monthly Profit & Cash Flow</span>
-          </button>
+          {isFinancialsUnlocked && (
+            <button
+              onClick={() => setActiveTab("cashflow")}
+              className={`py-2.5 px-4 text-xs font-semibold flex items-center gap-2 border-b-2 transition-all ${
+                activeTab === "cashflow"
+                  ? "border-indigo-500 text-indigo-400"
+                  : "border-transparent text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <TrendingUp className="h-4 w-4" />
+              <span>Monthly Profit & Cash Flow</span>
+            </button>
+          )}
         </div>
 
         {/* Tab 1: Unified Transaction Search */}
@@ -902,19 +920,21 @@ export default function Home() {
               matchingCount={quickFinancials.transactionCount}
             />
 
-            {/* Quick Cash Flow Ribbon */}
-            <QuickCashflow
-              totalInflow={quickFinancials.inflow}
-              totalOutflow={quickFinancials.outflow}
-              netProfit={quickFinancials.netProfit}
-              excludedContraTotal={quickFinancials.contraTotal}
-              excludedFDTotal={quickFinancials.fdTotal}
-              excludedFDInvestedTotal={quickFinancials.fdInvested}
-              excludedFDRedeemedTotal={quickFinancials.fdRedeemed}
-              excludedInsuranceTotal={quickFinancials.insuranceTotal}
-              periodLabel={getPeriodLabel()}
-              transactionCount={quickFinancials.transactionCount}
-            />
+            {/* Quick Cash Flow Ribbon - Protected by PIN */}
+            {isFinancialsUnlocked && (
+              <QuickCashflow
+                totalInflow={quickFinancials.inflow}
+                totalOutflow={quickFinancials.outflow}
+                netProfit={quickFinancials.netProfit}
+                excludedContraTotal={quickFinancials.contraTotal}
+                excludedFDTotal={quickFinancials.fdTotal}
+                excludedFDInvestedTotal={quickFinancials.fdInvested}
+                excludedFDRedeemedTotal={quickFinancials.fdRedeemed}
+                excludedInsuranceTotal={quickFinancials.insuranceTotal}
+                periodLabel={getPeriodLabel()}
+                transactionCount={quickFinancials.transactionCount}
+              />
+            )}
 
             {/* Bank Color Legend */}
             <BankLegend
@@ -953,7 +973,7 @@ export default function Home() {
         )}
 
         {/* Tab 2: Monthly Profit & Cash Flow */}
-        {activeTab === "cashflow" && (
+        {activeTab === "cashflow" && isFinancialsUnlocked && (
           <div className="space-y-5">
             {/* Period & Filter Controls (Available in Cash Flow Dashboard) */}
             <FiltersBar
@@ -1042,6 +1062,13 @@ export default function Home() {
           />
         </div>
       </main>
+
+      {/* Discrete PIN Modal for Financials Privacy */}
+      <PrivacyPinModal
+        isOpen={showPinModal}
+        onClose={() => setShowPinModal(false)}
+        onSuccess={() => setIsFinancialsUnlocked(true)}
+      />
 
       <Footer />
     </div>

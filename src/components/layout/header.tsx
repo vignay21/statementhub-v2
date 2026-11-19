@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Database, Sparkles, RefreshCw, Layers, Lock } from "lucide-react";
+import { Database, Sparkles, RefreshCw, Layers, Lock, Eye, EyeOff } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 
@@ -12,6 +12,8 @@ interface HeaderProps {
   geminiRequestsLeft: number;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  isFinancialsUnlocked?: boolean;
+  onTogglePrivacy?: () => void;
 }
 
 export function Header({
@@ -21,6 +23,8 @@ export function Header({
   geminiRequestsLeft,
   onRefresh,
   isRefreshing,
+  isFinancialsUnlocked = false,
+  onTogglePrivacy,
 }: HeaderProps) {
   const [protectionEnabled, setProtectionEnabled] = useState(false);
 
@@ -95,6 +99,22 @@ export function Header({
               <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
               <span className="hidden md:inline">Refresh</span>
             </Button>
+          )}
+
+          {/* Discrete Financials Privacy Eye Button */}
+          {onTogglePrivacy && (
+            <button
+              type="button"
+              onClick={onTogglePrivacy}
+              className="h-8 w-8 rounded-lg border border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200 hover:border-slate-700 flex items-center justify-center transition-colors"
+              aria-label="Display mode"
+            >
+              {isFinancialsUnlocked ? (
+                <Eye className="h-3.5 w-3.5 text-indigo-400" />
+              ) : (
+                <EyeOff className="h-3.5 w-3.5 text-slate-500" />
+              )}
+            </button>
           )}
 
           {/* Lock / Logout button (visible when protection is active) */}
