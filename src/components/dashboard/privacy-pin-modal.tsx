@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Lock, KeyRound, X, Check, ShieldCheck, Eye, EyeOff } from "lucide-react";
+import { Lock, KeyRound, X, ShieldCheck, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 
@@ -11,12 +11,12 @@ interface PrivacyPinModalProps {
   onSuccess: () => void;
 }
 
-const STORAGE_KEY = "statementhub_financials_pin";
-const DEFAULT_PIN = "1234";
-
 export function PrivacyPinModal({ isOpen, onClose, onSuccess }: PrivacyPinModalProps) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
   const [isChangingPin, setIsChangingPin] = useState(false);
   const [currentPinInput, setCurrentPinInput] = useState("");
   const [newPinInput, setNewPinInput] = useState("");
@@ -30,6 +30,8 @@ export function PrivacyPinModal({ isOpen, onClose, onSuccess }: PrivacyPinModalP
     if (isOpen) {
       setPin("");
       setError("");
+      setIsVerifying(false);
+      setIsSaving(false);
       setIsChangingPin(false);
       setCurrentPinInput("");
       setNewPinInput("");
@@ -43,37 +45,22 @@ export function PrivacyPinModal({ isOpen, onClose, onSuccess }: PrivacyPinModalP
 
   if (!isOpen) return null;
 
-  const getStoredPin = (): string => {
-    if (typeof window === "undefined") return DEFAULT_PIN;
-    return localStorage.getItem(STORAGE_KEY) || DEFAULT_PIN;
-  };
+  const handleUnlock = async (pinToVerify?: string) => {
+    const candidate = (pinToVerify !== undefined ? pinToVerify : pin).trim();
+    if (!candidate || isVerifying) return;
 
-  const handleUnlock = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const storedPin = getStoredPin();
-
-    if (pin.trim() === storedPin) {
-      setError("");
-      setPin("");
-      onSuccess();
-      onClose();
-    } else {
-      setError("Incorrect PIN. Please try again.");
-      setPin("");
-      inputRef.current?.focus();
-    }
-  };
-
-  const handlePinChange = (val: string) => {
-    // Only accept numeric input, max 6 digits (standard 4 digits)
-    const cleaned = val.replace(/\D/g, "").slice(0, 6);
-    setPin(cleaned);
+    setIsVerifying(true);
     setError("");
 
-    // Auto-submit if reaches standard 4 digits
-    const storedPin = getStoredPin();
-    if (cleaned.length === storedPin.length && cleaned.length >= 4) {
-      if (cleaned === storedPin) {
+    try {
+      const res = await fetch("/api/auth/pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: candidate }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.valid) {
         setError("");
         setPin("");
         onSuccess();
@@ -81,16 +68,34 @@ export function PrivacyPinModal({ isOpen, onClose, onSuccess }: PrivacyPinModalP
       } else {
         setError("Incorrect PIN. Please try again.");
         setPin("");
+        inputRef.current?.focus();
       }
+    } catch {
+      setError("Failed to verify PIN. Please try again.");
+      setPin("");
+      inputRef.current?.focus();
+    } finally {
+      setIsVerifying(false);
     }
   };
 
-  const handleChangePinSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const storedPin = getStoredPin();
+  const handlePinChange = (val: string) => {
+    const cleaned = val.replace(/\D/g, "").slice(0, 6);
+    setPin(cleaned);
+    setError("");
 
-    if (currentPinInput.trim() !== storedPin) {
-      setError("Current PIN is incorrect.");
+    // Auto-verify on 4th digit
+    if (cleaned.length === 4) {
+      handleUnlock(cleaned);
+    }
+  };
+
+  const handleChangePinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSaving) return;
+
+    if (!currentPinInput.trim()) {
+      setError("Current PIN is required.");
       return;
     }
 
@@ -104,19 +109,39 @@ export function PrivacyPinModal({ isOpen, onClose, onSuccess }: PrivacyPinModalP
       return;
     }
 
+    setIsSaving(true);
+    setError("");
+
     try {
-      localStorage.setItem(STORAGE_KEY, newPinInput.trim());
-      setChangeSuccess(true);
-      setError("");
-      setTimeout(() => {
-        setIsChangingPin(false);
-        setChangeSuccess(false);
-        setCurrentPinInput("");
-        setNewPinInput("");
-        setConfirmPinInput("");
-      }, 1500);
+      const res = await fetch("/api/auth/pin", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPin: currentPinInput.trim(),
+          newPin: newPinInput.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setChangeSuccess(true);
+        setError("");
+        setTimeout(() => {
+          setIsChangingPin(false);
+          setChangeSuccess(false);
+          setCurrentPinInput("");
+          setNewPinInput("");
+          setConfirmPinInput("");
+          setPin("");
+          setTimeout(() => inputRef.current?.focus(), 50);
+        }, 1500);
+      } else {
+        setError(data.error || "Failed to update PIN.");
+      }
     } catch {
-      setError("Failed to save PIN in browser storage.");
+      setError("Network error while updating PIN.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -124,14 +149,15 @@ export function PrivacyPinModal({ isOpen, onClose, onSuccess }: PrivacyPinModalP
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget && !isVerifying && !isSaving) onClose();
       }}
     >
       <div className="relative w-full max-w-sm rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl text-slate-100 space-y-5">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-slate-500 hover:text-slate-300 p-1 rounded-lg hover:bg-slate-900 transition-colors"
+          disabled={isVerifying || isSaving}
+          className="absolute top-4 right-4 text-slate-500 hover:text-slate-300 p-1 rounded-lg hover:bg-slate-900 transition-colors disabled:opacity-50"
           aria-label="Close"
         >
           <X className="h-4 w-4" />
@@ -139,10 +165,20 @@ export function PrivacyPinModal({ isOpen, onClose, onSuccess }: PrivacyPinModalP
 
         {!isChangingPin ? (
           /* Normal Unlock Mode */
-          <form onSubmit={handleUnlock} className="space-y-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleUnlock();
+            }}
+            className="space-y-4"
+          >
             <div className="flex flex-col items-center text-center space-y-2">
               <div className="h-11 w-11 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shadow-inner">
-                <Lock className="h-5 w-5" />
+                {isVerifying ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Lock className="h-5 w-5" />
+                )}
               </div>
               <h3 className="text-base font-semibold text-slate-100">Confidential Financials</h3>
               <p className="text-xs text-slate-400 max-w-[240px]">
@@ -162,6 +198,7 @@ export function PrivacyPinModal({ isOpen, onClose, onSuccess }: PrivacyPinModalP
                   onChange={(e) => handlePinChange(e.target.value)}
                   placeholder="••••"
                   autoComplete="off"
+                  disabled={isVerifying}
                   className="h-12 text-center text-2xl font-mono tracking-[0.4em] bg-slate-900 border-slate-800 focus:border-indigo-500 rounded-xl"
                   maxLength={6}
                 />
@@ -188,6 +225,7 @@ export function PrivacyPinModal({ isOpen, onClose, onSuccess }: PrivacyPinModalP
                 variant="outline"
                 size="sm"
                 onClick={onClose}
+                disabled={isVerifying}
                 className="w-1/2 h-9 text-xs border-slate-800 text-slate-400 hover:text-slate-200"
               >
                 Cancel
@@ -195,9 +233,17 @@ export function PrivacyPinModal({ isOpen, onClose, onSuccess }: PrivacyPinModalP
               <Button
                 type="submit"
                 size="sm"
+                disabled={isVerifying || pin.length < 4}
                 className="w-1/2 h-9 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium"
               >
-                Unlock
+                {isVerifying ? (
+                  <span className="flex items-center gap-1.5">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>Checking...</span>
+                  </span>
+                ) : (
+                  "Unlock"
+                )}
               </Button>
             </div>
 
@@ -208,10 +254,11 @@ export function PrivacyPinModal({ isOpen, onClose, onSuccess }: PrivacyPinModalP
                   setIsChangingPin(true);
                   setError("");
                 }}
+                disabled={isVerifying}
                 className="text-[11px] text-slate-500 hover:text-indigo-400 transition-colors inline-flex items-center gap-1"
               >
                 <KeyRound className="h-3 w-3" />
-                <span>Change PIN (Default: 1234)</span>
+                <span>Change PIN (Cloud Synced)</span>
               </button>
             </div>
           </form>
@@ -220,16 +267,20 @@ export function PrivacyPinModal({ isOpen, onClose, onSuccess }: PrivacyPinModalP
           <form onSubmit={handleChangePinSubmit} className="space-y-3.5">
             <div className="flex flex-col items-center text-center space-y-1.5">
               <div className="h-10 w-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
-                <KeyRound className="h-5 w-5" />
+                {isSaving ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <KeyRound className="h-5 w-5" />
+                )}
               </div>
               <h3 className="text-sm font-semibold text-slate-100">Set New PIN</h3>
-              <p className="text-[11px] text-slate-400">Update your 4-digit privacy PIN</p>
+              <p className="text-[11px] text-slate-400">Updates across all devices & incognito tabs</p>
             </div>
 
             {changeSuccess ? (
               <div className="py-6 flex flex-col items-center justify-center text-emerald-400 space-y-2">
-                <ShieldCheck className="h-8 w-8" />
-                <span className="text-xs font-semibold">PIN Changed Successfully!</span>
+                <ShieldCheck className="h-8 w-8 animate-in zoom-in-75 duration-200" />
+                <span className="text-xs font-semibold">PIN Updated Across All Devices!</span>
               </div>
             ) : (
               <>
@@ -239,9 +290,10 @@ export function PrivacyPinModal({ isOpen, onClose, onSuccess }: PrivacyPinModalP
                     <Input
                       type="password"
                       inputMode="numeric"
+                      disabled={isSaving}
                       value={currentPinInput}
                       onChange={(e) => setCurrentPinInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                      placeholder="Enter current PIN"
+                      placeholder="Enter current PIN (Default: 1234)"
                       className="h-8 text-xs font-mono bg-slate-900 border-slate-800"
                     />
                   </div>
@@ -251,6 +303,7 @@ export function PrivacyPinModal({ isOpen, onClose, onSuccess }: PrivacyPinModalP
                     <Input
                       type="password"
                       inputMode="numeric"
+                      disabled={isSaving}
                       value={newPinInput}
                       onChange={(e) => setNewPinInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
                       placeholder="e.g. 5678"
@@ -263,6 +316,7 @@ export function PrivacyPinModal({ isOpen, onClose, onSuccess }: PrivacyPinModalP
                     <Input
                       type="password"
                       inputMode="numeric"
+                      disabled={isSaving}
                       value={confirmPinInput}
                       onChange={(e) => setConfirmPinInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
                       placeholder="Re-enter new PIN"
@@ -280,6 +334,7 @@ export function PrivacyPinModal({ isOpen, onClose, onSuccess }: PrivacyPinModalP
                     type="button"
                     variant="outline"
                     size="sm"
+                    disabled={isSaving}
                     onClick={() => {
                       setIsChangingPin(false);
                       setError("");
@@ -291,9 +346,17 @@ export function PrivacyPinModal({ isOpen, onClose, onSuccess }: PrivacyPinModalP
                   <Button
                     type="submit"
                     size="sm"
+                    disabled={isSaving}
                     className="w-1/2 h-8 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium"
                   >
-                    Save PIN
+                    {isSaving ? (
+                      <span className="flex items-center gap-1.5">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span>Saving...</span>
+                      </span>
+                    ) : (
+                      "Save to Cloud"
+                    )}
                   </Button>
                 </div>
               </>
